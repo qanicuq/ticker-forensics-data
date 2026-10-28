@@ -1,0 +1,1 @@
+alert_date,ticker,expiration,strike,spot,call_mid,put_mid,iv,hv20,ratio,close_at_exp,straddle_value,straddle_pnl_pct

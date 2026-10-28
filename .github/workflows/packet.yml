@@ -1,0 +1,56 @@
+name: Generate Data Packet
+
+on:
+  workflow_dispatch:
+    inputs:
+      ticker:
+        description: "Ticker symbol (e.g. AAPL or COIN)"
+        required: true
+        type: string
+
+concurrency:
+  group: packet-commit
+  cancel-in-progress: false
+
+jobs:
+  packet:
+    runs-on: ubuntu-latest
+    env:
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate packet
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          SEC_IDENTITY_EMAIL: ${{ secrets.SEC_IDENTITY_EMAIL }}
+        run: python generate_packet.py ${{ inputs.ticker }}
+
+      - name: Commit packet
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add packets/
+          git commit -m "packet: ${{ inputs.ticker }}" || echo "No changes"
+          git pull --rebase origin main
+          git push
+
+      - name: Notify ntfy
+        if: always()
+        run: |
+          MISMATCHES=$(python -c "import json; d=json.load(open('packets/${{ inputs.ticker }}.json')); print(len(d.get('cross_check',{}).get('mismatches',[])))" 2>/dev/null || echo 0)
+          ERRORS=$(python -c "import json; d=json.load(open('packets/${{ inputs.ticker }}.json')); print(len(d.get('errors',[])))" 2>/dev/null || echo 0)
+          curl -d "mismatches: $MISMATCHES, errors: $ERRORS" \
+               -H "Title: Ticker Forensics packet: ${{ inputs.ticker }}" \
+               "https://ntfy.sh/$NTFY_TOPIC"

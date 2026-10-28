@@ -1,0 +1,1 @@
+# One ticker per line. Lines starting with # are ignored.

@@ -1,0 +1,50 @@
+name: Past Calls Report Card
+
+on:
+  schedule:
+    # 14:17 UTC Saturday = 10:17 AM New York (9:17 AM in winter).
+    - cron: "17 14 * * 6"
+  workflow_dispatch:
+
+concurrency:
+  group: packet-commit
+  cancel-in-progress: false
+
+jobs:
+  score:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pandas==2.2.3 yfinance==1.7.0
+
+      - name: Score calls
+        run: python score_calls.py
+
+      - name: Commit report card
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add calls/scorecard.md
+          git commit -m "calls: weekly report card [skip ci]" || echo "No changes"
+          git pull --rebase origin main
+          git push
+
+      - name: Alert on failure
+        if: failure()
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: |
+          curl -d "The Past Calls Report Card run failed. Tap to see the error." \
+               -H "Title: Report Card FAILED" \
+               -H "Click: https://github.com/qanicuq/ticker-forensics-data/actions/workflows/score_calls.yml" \
+               "https://ntfy.sh/$NTFY_TOPIC"

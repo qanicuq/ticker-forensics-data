@@ -1,0 +1,49 @@
+name: SEC Exchange List
+
+# Saves the SEC's official ticker -> exchange list once each weekday so the
+# Theme Scout reviewer can confirm every ticker trades on a major US exchange.
+
+on:
+  schedule:
+    - cron: "17 11 * * 1-5"   # 11:17 UTC weekdays (early morning New York)
+  workflow_dispatch:
+
+concurrency:
+  group: packet-commit
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    env:
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download SEC list
+        env:
+          SEC_IDENTITY_EMAIL: ${{ secrets.SEC_IDENTITY_EMAIL }}
+        run: |
+          mkdir -p sec
+          curl -sSf --retry 3 -A "ticker-forensics-data $SEC_IDENTITY_EMAIL" \
+            https://www.sec.gov/files/company_tickers_exchange.json -o sec/new.json
+          python -c "import json; d=json.load(open('sec/new.json')); assert len(d['data'])>5000, 'list too short'"
+          mv sec/new.json sec/company_tickers_exchange.json
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add sec/company_tickers_exchange.json
+          git commit -m "sec: refresh exchange list" || { echo "No changes"; exit 0; }
+          git pull --rebase origin main
+          git push
+
+      - name: Alert on failure
+        if: failure()
+        run: |
+          curl -d "The daily SEC exchange list download failed. Theme Scout will fall back to Webull's exchange data." \
+               -H "Title: Theme Scout: SEC list failed" \
+               "https://ntfy.sh/$NTFY_TOPIC"

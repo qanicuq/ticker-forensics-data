@@ -1,0 +1,63 @@
+name: Diamond Screen
+
+# Screens every NYSE/Nasdaq/Cboe stock with the value-investing-library SKILL.md rules
+# and saves a shortlist to screens/diamond_screen.md.
+# Runs Mon, Wed, Fri after the market close so it uses settled closing prices,
+# and you read it in the evening and decide calmly before the next open.
+
+on:
+  schedule:
+    - cron: "43 22 * * 1,3,5"   # 22:43 UTC = 6:43 PM New York (5:43 PM in winter)
+  workflow_dispatch:
+
+concurrency:
+  group: packet-commit
+  cancel-in-progress: false
+
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    env:
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests==2.33.1 yfinance==1.7.0
+
+      - name: Run screen
+        env:
+          SEC_IDENTITY_EMAIL: ${{ secrets.SEC_IDENTITY_EMAIL }}
+        run: python diamond_screen.py
+
+      - name: Commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add screens/
+          git commit -m "screen: diamond screen results" || echo "No changes"
+          git pull --rebase origin main
+          git push
+
+      - name: Notify ntfy
+        run: |
+          curl -d "$(cat ntfy_message.txt)" \
+               -H "Title: Diamond Finder" \
+               -H "Click: https://github.com/qanicuq/ticker-forensics-data/blob/main/screens/diamond_screen.md" \
+               "https://ntfy.sh/$NTFY_TOPIC"
+
+      - name: Alert on failure
+        if: failure()
+        run: |
+          curl -d "The Diamond Finder run failed. Tap to see the error." \
+               -H "Title: Diamond Finder FAILED" \
+               -H "Click: https://github.com/qanicuq/ticker-forensics-data/actions/workflows/diamond_screen.yml" \
+               "https://ntfy.sh/$NTFY_TOPIC"
