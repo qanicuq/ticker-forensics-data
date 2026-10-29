@@ -2,3 +2,4 @@ date,ticker,verdict,confidence,price,entry,target,stop
 2026-10-28,NFG,WATCH,55,80.21,75.41,84.46,70.89
 2026-10-28,AVA,AVOID,35,37.01,,,
 2026-10-28,POR,AVOID,55,44.27,,,
+2026-10-28,EOSE,AVOID,35,1.95,,,
