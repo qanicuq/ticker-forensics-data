@@ -207,6 +207,7 @@ def fundamentals(facts):
         "ncav": ca - liab - preferred,
         "cffo_ratio": round(cffo_ratio, 2) if cffo_ratio is not None else None,
         "pays_dividend": bool(div.get(fy)),
+        "dividends_last": div.get(fy) or 0,
         "shares": shares,
         "flags": flags,
     }, None
@@ -214,23 +215,28 @@ def fundamentals(facts):
 
 # ---------- prices ----------
 def get_prices(tickers):
-    """{ticker: (last close, last close date, avg daily volume over ~3 months)} from yfinance."""
+    """{ticker: (last close, last close date, avg daily volume over ~3 months, 52-week low or None)} from yfinance."""
+    import pandas as pd
     import yfinance as yf
     ny = datetime.now(ZoneInfo("America/New_York"))
     # today's bar only counts once the market has closed (4:00 PM; 4:15 for a safety margin)
     last_closed = str(ny.date() if (ny.hour, ny.minute) >= (16, 15) else ny.date() - timedelta(days=1))
+    three_mo_ago = str((pd.Timestamp(ny.date()) - pd.DateOffset(months=3)).date())
     out = {}
     for i in range(0, len(tickers), 200):
         batch = tickers[i:i + 200]
-        data = yf.download(batch, period="3mo", interval="1d", group_by="ticker",
+        data = yf.download(batch, period="1y", interval="1d", group_by="ticker",
                            auto_adjust=False, threads=True, progress=False)
         for t in batch:
             try:
                 d = (data[t] if len(batch) > 1 else data).dropna(subset=["Close"])
                 d = d[[str(x.date()) <= last_closed for x in d.index]]  # never use a day still trading
-                if len(d) < 20:
+                recent = d[[str(x.date()) >= three_mo_ago for x in d.index]]  # same 3-month window as before
+                if len(recent) < 20:
                     continue
-                out[t] = (float(d["Close"].iloc[-1]), str(d.index[-1].date()), float(d["Volume"].mean()))
+                low_52w = float(d["Low"].min()) if len(d) >= 240 else None  # None = listed under a year
+                out[t] = (float(d["Close"].iloc[-1]), str(d.index[-1].date()),
+                          float(recent["Volume"].mean()), low_52w)
             except Exception:
                 continue
     return out
@@ -261,6 +267,13 @@ def rank(values, higher_is_better):
     """Rank 1 = best. Missing values rank last."""
     keyed = sorted(values.items(), key=lambda kv: (kv[1] is None, -(kv[1] or 0) if higher_is_better else (kv[1] or 0)))
     return {k: i + 1 for i, (k, _) in enumerate(keyed)}
+
+
+def near_low(pct):
+    """'Yes (+4.2%)' when the price is within 10% of its 52-week low."""
+    if pct is None:
+        return "n/a"
+    return f"{'Yes' if pct <= 10 else 'No'} (+{pct}%)"
 
 
 def fmt_money(x):
@@ -328,7 +341,7 @@ def main():
         if t not in prices:
             skipped["no price data"] = skipped.get("no price data", 0) + 1
             continue
-        price, price_date, avg_vol = prices[t]
+        price, price_date, avg_vol, low_52w = prices[t]
         mcap = price * f["shares"]
         pe_avg3 = mcap / f["ni_avg3"]
         if mcap > MAX_MARKET_CAP:
@@ -355,6 +368,9 @@ def main():
             "earnings above 4 years ago": ni[-1] > ni[0],
             "price < 120% of tangible book": ptb is not None and ptb < 1.2,
         }
+        # Neff total return ratio (SKILL.md section 3): (earnings growth % + dividend yield %) / P/E
+        growth_pct = ((ni[-1] / ni[0]) ** (1 / (len(ni) - 1)) - 1) * 100  # yearly growth of total earnings, last 5 annual reports
+        yield_pct = f["dividends_last"] / mcap * 100
         final[t] = {
             **f,
             "price": round(price, 2), "price_date": price_date, "avg_volume": round(avg_vol),
@@ -366,6 +382,10 @@ def main():
             "net_net": f["ncav"] > 0 and mcap <= f["ncav"] * 2 / 3,
             "enterprising_tests": tests,
             "enterprising_passed": sum(tests.values()),
+            "pct_above_52w_low": round((price / low_52w - 1) * 100, 1) if low_52w else None,
+            "neff_ratio": round((growth_pct + yield_pct) / pe_last, 2),
+            "neff_growth_pct": round(growth_pct, 1),
+            "dividend_yield_pct": round(yield_pct, 1),
         }
 
     # 4. Equal-weight rank sum (SKILL.md section 11: keep scoring simple)
@@ -445,8 +465,8 @@ def main():
         "",
         "## Shortlist",
         "",
-        "| # | Ticker | Company | Price | Mkt cap | P/E (3-yr avg) | P/B | P/E × P/B ≤ 22.5? | Graham tests passed | Net-net? | Red flags |",
-        "|---|---|---|---|---|---|---|---|---|---|---|",
+        "| # | Ticker | Company | Price | Mkt cap | P/E (3-yr avg) | P/B | P/E × P/B ≤ 22.5? | Graham tests passed | Net-net? | Near 52-wk low? | Neff ratio | Red flags |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for i, v in enumerate(shortlist, 1):
         g = v["graham_pe_x_pb"]
@@ -455,11 +475,16 @@ def main():
             f"{v['pe_avg3']} | {v['pb'] if v['pb'] is not None else 'n/a'} | "
             f"{'Yes' if g is not None and g <= 22.5 else 'No'} ({g if g is not None else 'n/a'}) | "
             f"{v['enterprising_passed']}/7 | {'Yes' if v['net_net'] else 'No'} | "
+            f"{near_low(v['pct_above_52w_low'])} | {v['neff_ratio']} | "
             f"{'; '.join(v['flags']) or 'none'} |")
     lines += [
         "",
         "Graham tests = the 7 enterprising-investor tests in SKILL.md. Red flags are quick forensic checks "
         "(SKILL.md section 4); a flag means look harder, not automatically avoid.",
+        "",
+        "Near 52-wk low? = price within 10% of its lowest price in the past year (Dreman and Neff hunt among recent losers). The % is how far above that low it is. n/a = listed under a year.",
+        "",
+        "Neff ratio = (yearly growth of total earnings over the last 5 annual reports % + dividend yield %) ÷ P/E on the latest year. Higher is better; Neff wanted about twice the market's ratio. It uses total earnings, not per-share earnings, so buybacks or new shares can make it a little off.",
         "",
         "## Passed the earnings and balance-sheet tests but not ranked",
         "",
