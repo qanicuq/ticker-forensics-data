@@ -1,17 +1,17 @@
 ---
 name: value-investing-library
-description: Chris's value-investing playbook from 18 classic investing books. Use when analyzing or screening stocks, checking accounts for red flags, valuing a business, sizing positions, planning exits, or building stock tools.
+description: Chris's value-investing playbook from 19 classic investing books. Use when analyzing or screening stocks, checking accounts for red flags, valuing a business, sizing positions, planning exits, or building stock tools.
 ---
 
-**Last Updated:** 2026-10-30 (added Dreman, *Contrarian Investment Strategies: The Next Generation*; 18 books).
+**Last Updated:** 2026-10-30 (added Dreman, *Contrarian Investment Strategies*, and Neff, *John Neff on Investing*; 19 books).
 
 # Value Investing Library
 
-A working playbook built from detailed notes on 18 books from the Dynamics Associates "Hedge Fund Reading List". It tells you how to find, check, value, size, buy, hold and sell stocks the way these authors would, adapted to Chris's style.
+A working playbook built from detailed notes on 19 books from the Dynamics Associates "Hedge Fund Reading List". It tells you how to find, check, value, size, buy, hold and sell stocks the way these authors would, adapted to Chris's style.
 
-**What this skill is and is not.** It holds book knowledge only: methods, rules, thresholds, checklists and lessons. It has no live prices, filings or financial data. When a task needs current numbers, get them from whatever market-data tools the chat has (for example a Webull, Alpha Vantage or SEC/EDGAR connector, or web search), say which numbers are live and which are estimated, and never invent figures. Nothing here is personal financial advice; it is a method for thinking clearly.
+**What this skill is and is not.** It holds book knowledge only: methods, rules, thresholds, checklists and lessons. It has no live data: get current numbers from the chat's market-data tools (Webull, Alpha Vantage, SEC/EDGAR, web search), say which are live and which estimated, and never invent figures. Nothing here is personal financial advice; it is a method for thinking clearly.
 
-**Full notes.** If a `references/` folder sits next to this file, it holds the complete per-book notes (core ideas, rulebook, chapter notes, case index, quotes, modern application, limits, cross-links). Open the relevant file when you need a detail, a case, a quote or a number that this summary leaves out. Book-to-file map is in §12. If the folder is absent, work from this file.
+**Full notes.** If a `references/` folder sits next to this file, it holds the complete per-book notes. Open one when you need a detail, case, quote or number left out here. Book-to-file map is in §12. If the folder is absent, work from this file.
 
 ---
 
@@ -41,7 +41,8 @@ When the user names a ticker, follow §11's analysis template. When building a t
 - Neglect: small and micro caps, few or no analysts (today: under ~5 analysts, under ~40-50% *active* institutional ownership), outside major indexes, boring or disagreeable businesses, dull names, no-growth industries, stigma, lawsuits, complexity.
 - Forced or rule-bound sellers: spinoffs, index deletions, post-bankruptcy stock, merger securities (bonds, preferreds, warrants, CVRs paid to target holders), rights offerings, tax-loss selling (Oct-Dec), fund mandates (no stocks under $5, dividend-payers only, investment-grade only).
 - **Forced seller or broken business? (Chan)** Funds hit by redemptions dump holdings "through no fault or merit on their own"; buying the stocks sold hardest over the past 1-4 quarters earned ~7% a year (Coval and Stafford). Index deletions and ETF rebalancing work the same way. Moves caused by someone needing cash revert; moves caused by a business change don't. The bargain comes *after* the forced selling. Retail signs: 13F stake cuts, fund closures, index reconstitution, spinoff dates, tax-loss season.
-- Disappointment: stocks at 52-week, two- or three-year lows, especially after a gap down; three-year losers (but one-year momentum persists short term); new-lows lists.
+- Disappointment: stocks at 52-week, two- or three-year lows, especially after a gap down; three-year losers (but one-year momentum persists short term); new-lows lists. Neff: the "Hmmmph" test (yesterday's 20 worst: overdone?).
+- **Neff:** companies "on the squash" mid-restructuring, climbing the quality ladder, "backdoor" access (a cheap parent of a good business), miscategorized (half non-cyclical, priced as cyclical). Avoid firms with no critical mass.
 - Hidden value: real estate at historical cost, equity stakes, net cash, NOLs, a valuable unit inside a dull company (sum of the parts), a loss-making division whose sale or closure lifts EPS.
 - Change: spinoffs, restructurings, asset sales, recapitalisations, management changes, capacity leaving an industry, emergence from bankruptcy.
 - Your own edge (Lynch): products, stores, suppliers and trends you see at work or as a consumer before Wall Street does. A lead is only a reason to research, never a buy signal.
@@ -57,8 +58,8 @@ When the user names a ticker, follow §11's analysis template. When building a t
 **Dreman's contrarian screens** (1,500 largest US stocks, 1970-96). The cheapest 20% by low P/E earned 19.0% a year, low P/B 18.8%, low P/CF 18.0%, high yield 16.1%, vs 14.9% for the market; they also fell less in down quarters and kept winning for 2-8 years after purchase.
 - *Quick test:* an established company ≥ 20% below the S&P 500 on P/E, P/CF or P/B, or yield ≥ 1 point above the market's.
 - *Industry-relative:* the cheapest 20% within each industry earned 17.7-18.4% and beat the favorites 80-90% of the time, even in expensive industries (a separate effect from absolute cheapness).
-- *Small caps only when cheap:* the small-cap effect is really a low-P/E effect ($100-500m: low P/E 18.6% vs high P/E 12.5%). Also require debt ≤ ~60% of capital, a rising above-market dividend, above-average growth.
-- Avoid IPOs and concept stocks: 4,753 IPOs (1970-90) earned 3% a year vs 11.3% for the S&P 500; the median IPO lost 39%.
+- *Small caps only when cheap:* the small-cap effect is really a low-P/E effect. Also require debt ≤ ~60% of capital, a rising above-market dividend, above-average growth.
+- Avoid IPOs and concept stocks (IPOs 1970-90: 3% a year vs 11.3% for the S&P 500).
 
 **Lynch's six categories.** Classify first; the category sets realistic upside, the numbers that matter and the sell rule. Re-classify as the story changes.
 
@@ -72,6 +73,8 @@ When the user names a ticker, follow §11's analysis template. When building a t
 | Asset play | Overlooked assets worth more than price | 2-5x, low risk if values are sure | Assets verified, little debt ahead of you | Value recognised, assets sold for less, new debt or dilution |
 
 PEG check: P/E ≈ growth rate is fair; P/E at half the growth rate is attractive; (growth + dividend yield) ÷ P/E ≥ 2 is excellent. Use sustainable growth, not hope.
+
+**Neff's total return ratio** (Windsor 1964-95: 13.7%/yr vs 10.6%). (5-yr EPS growth % + yield %) ÷ P/E at about **2× the market's ratio** (1999: 0.35, so > 0.7), P/E 40-60% below the market's, growth 6-20%, no cyclical without a compensating P/E. **Sweet spot:** 12-20% growth, P/E 6-9, niche leader, unbroken double-digit record, high ROE, 2-3.5% yield; "one in five fails fundamentally every year". Yield is the assured part of return: recycle matured yields into ~2 points more. The prize is P/E expansion: 8× → 11× plus 11% growth = +53%.
 
 **Lynch's ideal company:** dull name, dull or disagreeable business, spinoff, no-growth industry, niche or local monopoly, repeat purchases, user (not maker) of technology, insiders buying, company buying back shares. **Avoid:** hottest stock in the hottest industry, "the next X", diworseification (unrelated acquisitions), whisper stocks, one customer > 25% of sales, exciting names.
 
@@ -157,8 +160,9 @@ If ROC = R, growth is worth nothing at any speed. Growth multiples are smaller t
 - Cap rate: after-tax EBIT ÷ (equity value + debt − cash). Private-market value from recent deal prices per unit or EV/EBITDA.
 - Sum of the parts for conglomerates and companies with listed stakes.
 - Historical range: buy when P/E is in the low part of the stock's own range or dividend yield in the high part.
+- **Cyclicals (Neff):** value on normal (mid-cycle) earnings; "never capitalize peak earnings" (the P/E shrinks before the peak). Buy at a rock-bottom P/E ~6-9 months before earnings turn; sell into rising demand.
 - Leverage shrinks the margin of safety: with $100 of assets and $80 of debt, a 10% asset error halves the equity.
-- **Mark forecasts down (Dreman).** Consensus quarterly estimates missed by 44% on average (1973-96), only ~1 in 4 within ±5%, and run too high (S&P growth forecast 21.9%/yr vs 7.8% actual, 1982-97). Cut any forward estimate, avoid methods that need precise forecasts, and expect the worst case to be worse than your first guess.
+- **Mark forecasts down (Dreman).** Consensus estimates missed by 44% on average (1973-96) and run too high. Cut any forward estimate, avoid methods that need precise forecasts, and expect the worst case to be worse than your first guess.
 
 ---
 
@@ -188,6 +192,8 @@ If ROC = R, growth is worth nothing at any speed. Growth multiples are smaller t
 - A cheap stock that looks "too perfect" deserves the forensic check twice; when management's reassurances prove false, sell (Westinghouse).
 - Cyclicals: judge on P/CF, P/B or ~5-year average earnings. Loss-makers: small positions, only with certain financial strength.
 
+**"How wrong can I be?" (Neff).** Sales growth must back earnings growth; dollar sales outgrowing units = pricing power; high margins cushion bad news; ROE is the best single yardstick; retained earnings + depreciation should cover working capital and capex; corroborate earnings outside the company. Name the "conduit" that will make the market see the value.
+
 **Courage of your knowledge.** "You are neither right nor wrong because the crowd disagrees with you. You are right because your data and reasoning are right" (Graham). Mr. Market is a servant, not a guide: use his prices, never take them as information about value.
 
 ---
@@ -197,11 +203,11 @@ If ROC = R, growth is worth nothing at any speed. Growth multiples are smaller t
 **Sizing (Schwager, Klarman, Taleb):**
 - Size from the downside, not the upside: dollars at risk = position size × (price − realistic value if the thesis is wrong). Keep that near 1-2% of the account, up to 3-5% for top-conviction ideas with a hard asset floor. A real margin of safety allows a larger position for the same dollars at risk.
 - Concentration: 10-15 well-understood positions (Klarman, Greenwald); Greenblatt says 6-8 in different industries captures most diversification. Correlated cheap stocks (three regional banks, four oil-service names) are one bet: cap the theme, not just the ticker. A *mechanical* cheap-stock basket needs 20-30 equal-weight names across 15+ industries, twice that for small caps (Dreman).
-- Liquidity: cap a position at what you could sell in a few days of normal volume; assume the bid disappears in a crash. Illiquid small caps are exactly where traders got trapped in 1987. Count the spread as a cost ($2.50 bid / $3.50 ask needs +40% to break even); use limit orders (Dreman).
+- Liquidity: cap a position at what you could sell in a few days of normal volume; assume the bid disappears in a crash. Count the spread as a cost ($2.50 bid / $3.50 ask needs +40% to break even); use limit orders (Dreman).
 - No leverage on value positions: value can take years, and leverage turns "early" into "wiped out". Never invest money needed in the next 2-3 years.
 - Binary events (FDA, litigation, refinancing, rulings): size as if the bad outcome is plausible, or wait.
 - Sleep test: if it halved tomorrow, could you act calmly? If not, it is too big.
-- **Sizing a strategy or bot (Chan, Kelly).** Kelly needs a track record, so use it for a strategy (the paper bot, a mechanical basket), not one stock: f = m ÷ s² (mean excess return over its variance). Errors in m or s lead to ruin, so **half-Kelly is a ceiling, not a target**, and never leverage (6% excess return at 25% volatility: Kelly ≈ 0.96, so at most about half the account). Short paper records call for less.
+- **Sizing a strategy or bot (Chan, Kelly).** Kelly needs a track record, so use it for a strategy (the paper bot, a mechanical basket), not one stock: f = m ÷ s² (mean excess return over its variance). Errors in m or s lead to ruin, so **half-Kelly is a ceiling, not a target**, and never leverage. Short paper records call for less.
 - **Risk budget with an off switch (Chan's CPPI).** Decide the most you will lose to a strategy (say half the account); only that slice trades. Reset it to that fraction at each new account high; never top it up after losses. If it is gone, the strategy stops for review.
 
 **Entry: the three-part test.**
@@ -234,17 +240,19 @@ Price falls are information about value; portfolio losses are information about 
 6. **No longer cheap (Dreman's Rule 21):** sell when P/E, P/CF and P/B are back near the market's, "regardless of how favorable prospects may appear", and buy another cheap stock. Needs no value estimate, so it cross-checks trigger 1. Use several ratios; ignore a P/E inflated by a temporary earnings dip; trim rather than sell a real compounder.
 7. **Time stop, two steps:** at ~18 months with no catalyst and nothing improved, re-underwrite or trim; at 30-36 months (3.5 years for a cyclical in a dip), sell if it still hasn't worked. Dreman: cheap stocks keep winning 2-8 years and reratings are "slow, even glacial".
 8. **Set the sell point on the day you buy.** Raising targets as the price rises leads to "the round trip". Sell at once if the long-term business really deteriorates (not one poor quarter). Switch rarely.
-9. **Don't sell just because it went up.** Re-ask "would I buy it here, today, at this size?" If earnings and book grew too, the ratios may still be cheap. Lynch made most of his money in years three and four.
+9. **Neff's two reasons:** fundamentals worse (estimates or 5-yr growth cut) or price near target (EPS × target P/E). "If the best we could say was 'it probably won't go down', it became a sale." Rank holdings by appreciation potential (target ÷ price − 1) and recycle the weakest. Sell into strength; "when you feel like bragging about a stock, it's probably time to sell."
+10. **Don't sell just because it went up.** Re-ask "would I buy it here, today, at this size?" If earnings and book grew too, the ratios may still be cheap. Lynch made most of his money in years three and four.
 "All investments are for sale at the right price" (Klarman). "It is never wrong to change your mind. It is only wrong to change your mind and do nothing about it."
 
 **Portfolio rules:**
 - Circuit breaker: about 10% down from the account high, stop buying, review every thesis, cut the broken ones.
 - In a losing streak, halve new position sizes until the process produces wins. Raise sizes only after the process has earned it.
-- Hold cash when nothing passes the checklist. Cash is a position with zero opportunity-cost risk.
+- Hold cash when nothing passes the checklist, up to ~20% (Neff). Cash is a position with zero opportunity-cost risk.
+- **Neff:** cyclicals ≤ ~30%; popular growth small; steady high-yield names as "dry powder". In a hated industry buy the "good guys": strongest survivors at little or no premium (1990-91 banks).
 - Keep a written journal of every buy and sell with the reason; review losers in quiet periods.
 - **Low turnover (Dreman).** 0.5% per trade at 100% turnover costs ~2.5% of capital in 5 years. "Buy and weed": replace only stocks that reached market ratios or hit the time stop.
 
-**Panic playbook (Dreman).** (1) Buy in a panic, don't sell: after 11 postwar crises the Dow was up 25.8% a year after the low and 37.5% two years after. (2) Write down the reasons given for lower prices and check them; most fall apart. (3) **Value lifelines:** compare P/E, P/B and yield before, at and after the crisis (1990 banks: P/E 9.4 → 6.3, yield 4.1% → 8.8%); keep normal levels on the watchlist. (4) Financial strength first (banks: losses reserved, capital well above minimum, dividend kept). (5) Spread across the hated group (≤ 2% per name) and buy in tranches: "what looks dirt cheap can often drop another 20% or 30%."
+**Panic playbook (Dreman).** (1) Buy in a panic, don't sell (after 11 postwar crises the Dow was up 25.8% a year later). (2) Write down the reasons given for lower prices and check them; most fall apart. (3) **Value lifelines:** compare P/E, P/B and yield before, at and after the crisis; keep normal levels on the watchlist. (4) Financial strength first (banks: losses reserved, capital well above minimum, dividend kept). (5) Spread across the hated group (≤ 2% per name) and buy in tranches: "what looks dirt cheap can often drop another 20% or 30%."
 
 **Hedging (for a value investor):**
 - The main hedges are sizing, cash and buying cheap.
@@ -270,14 +278,14 @@ Price falls are information about value; portfolio losses are information about 
 ## 8. Risk philosophy (Taleb, Klarman, Soros)
 
 - **Survival first.** "In a strategy that entails ruin, benefits never offset risks of ruin." Know your "uncle point" and stay well below it. One person over a hundred days is not a hundred people once (ensemble vs time probability).
-- **Fat tails.** Markets live in Extremistan: a few days drive most returns, and the worst case is worse than history shows. Long calm is not safety (the turkey). Don't trust standard deviation, beta, Sharpe ratios or VaR as risk measures.
+- **Fat tails.** A few days drive most returns and the worst case is worse than history shows; long calm is not safety. Don't trust standard deviation, beta, Sharpe or VaR.
 - **Fragility test.** If each extra unit of stress hurts more than the last (debt, operating leverage, refinancing walls, customer concentration), the business is fragile. Prefer robust businesses: low debt, redundancy (cash), many small customers, long survival (Lindy: a business that has sold the same thing profitably for decades will likely keep doing so).
 - **Asymmetry and barbell.** Prefer bets that lose small and win big; avoid "picking up nickels in front of a steamroller" (selling naked tail risk, leverage, averaging down on margin). The barbell: most capital very safe, a small part in open-ended upside.
-- **Expectation, not probability.** What matters is how much you make or lose when it happens, not how often you are right. Win rate is the least important statistic.
-- **Noise.** Look at data and the portfolio rarely; daily moves are mostly noise. Only big changes deserve attention.
-- **Luck vs skill and survivorship.** Judge decisions by the alternative histories, not the outcome. Great track records appear by chance in big populations.
-- **Skin in the game.** Weight people who own what they recommend. Ignore forecasts and price targets from people with nothing at stake. Smooth, steady earnings can hide tail risk; ask what they are short.
-- **Reflexivity (Soros).** Prices can change fundamentals when a company needs capital, refinancing or stock-funded acquisitions; credit booms are slow and busts sharp. Write a hypothesis, look for its flaw, and expect to correct it. Most of the time markets are near equilibrium and this is noise.
+- **Expectation, not probability.** How much you make or lose matters, not how often you are right.
+- **Noise.** Look at the portfolio rarely; daily moves are mostly noise.
+- **Luck vs skill.** Judge decisions by the alternative histories, not the outcome; great records appear by chance in big populations.
+- **Skin in the game.** Weight people who own what they recommend; ignore targets from people with nothing at stake. Smooth earnings can hide tail risk.
+- **Reflexivity (Soros).** Prices can change fundamentals when a company needs capital, refinancing or stock-funded acquisitions; credit booms are slow and busts sharp. Most of the time this is noise.
 
 ## 9. Psychology and discipline
 
@@ -287,10 +295,10 @@ Price falls are information about value; portfolio losses are information about 
 - Market reaction to news is information: bad news that no longer pushes a stock down is a sign of strength; good news that fails to lift it is a warning.
 - Danger follows big wins; overconfidence kills. Losing streaks call for smaller size, not catch-up bets. You can't win if you have to win.
 - Never buy right after a big rise or sell right after a big drop (Graham). When a holding falls: what changed besides the price? Divide your cost by ten: would you still hold? If the facts changed, sell; if not, consider buying more within limits.
-- The method must fit the person; breaking discipline once makes it easier the next time.
 - Be patient: value investing means being lonely, early and sometimes lagging in bull markets. There are no called strikes; wait for the fat pitch.
-- **Most quit right before it works (Dreman).** Value lagged for years after 1988 and investors gave up at the bottom, just before it won for years: "virtually every time". Cheap stocks beat the market only ~60/40 per quarter but in 87-94% of 5- and 10-year periods.
-- **Confident voices pull your opinion unnoticed** (one confident person shifted others' estimates up to 80%). Write your own estimate before reading opinions. Manias repeat: easy-wealth image, expert cheerleaders, panic, "this time is different". Overreaction is predictable; its timing is not.
+- **Most quit right before it works (Dreman).** Cheap stocks beat the market only ~60/40 per quarter but in 87-94% of 5- and 10-year periods.
+- **Contrarian, not stubborn (Neff).** "Eventually you have to be right on fundamentals." When media and consensus agree, watch for a turn. His Citicorp averaging down ($33 → $8) worked only after costs far above plan and a dividend cut: survival and size limits first.
+- **Confident voices pull your opinion unnoticed**. Write your own estimate before reading opinions. Manias repeat. Overreaction is predictable; its timing is not.
 
 ---
 
@@ -302,6 +310,7 @@ Price falls are information about value; portfolio losses are information about 
 | Buy cheap or buy strength? | Graham, Klarman: buy cheap | O'Neil, Livermore: buy new highs | Select on cheapness; time with "selling exhausted" and stabilising price |
 | How diversified? | Graham 10-30, net-nets 30-100; Dreman 20-30 equal-weight | Greenblatt 6-8; Klarman 10-15 | 10-15 researched picks; 20-30 equal-weight for mechanical cheap-stock baskets |
 | When to sell a winner? | Dreman: ratios near the market's | Lynch, Klarman: not just because it rose | Value reached or market-level ratios (several ratios); trim a real compounder |
+| What growth to pay for? | Graham: little; Greenwald: only above the cost of capital | Lynch fast growers 20-25%; Neff 6-20%, ideal 12-20% at P/E 6-9 | Pay for growth only when (growth + yield) ÷ P/E is ≥ ~2× the market's and ROE is high |
 | How long to wait? | Catalyst view: ~18 months | Dreman 2.5-3 yrs; Templeton 6 | Review at 18 months, sell at 30-36 if still not working |
 | Bad news? | Chan: drops keep drifting | Dreman: barely hurts cheap stocks, crushes favorites | Re-check value; wait ~a quarter before buying a good company just knocked down |
 | Forecast or not? | Graham, Greenwald: value from the record | Soros: dynamic hypotheses about others' beliefs | Value from the record; use reflexivity only for financing-dependent situations |
@@ -323,7 +332,7 @@ Price falls are information about value; portfolio losses are information about 
 
 **Building tools (scanners, scorers, dashboards, bots).**
 - Encode the process order: forensic flags gate the valuation; valuation sets buy-below; sizing comes from downside, not upside.
-- Useful fields: verdict, intrinsicValue (low/base), buyBelow, marginOfSafety %, category (Lynch), forensic score with named flags, EPV, asset/NCAV value, Graham defensive and enterprising pass/fail per test, P/E × P/B, PEG, net cash per share, insider buying (90 days), active institutional %, analyst count, catalyst, thesisBreak, exit triggers (value reached, no longer cheap vs market, thesis broken, forensic flag, 18-month review and 30-36-month time stop), max position %, dollars at risk. Dreman: ratios vs S&P 500 (≥ 20% cheaper on one, or yield ≥ 1 pt higher), rank within industry, dividend held/raised/cut, surprise tag (event trigger / reinforcing / warning).
+- Useful fields: verdict, intrinsicValue (low/base), buyBelow, marginOfSafety %, category (Lynch), forensic score with named flags, EPV, asset/NCAV value, Graham defensive and enterprising pass/fail per test, P/E × P/B, PEG, net cash per share, insider buying (90 days), active institutional %, analyst count, catalyst, thesisBreak, exit triggers (value reached, no longer cheap vs market, thesis broken, forensic flag, 18-month review and 30-36-month time stop), max position %, dollars at risk. Dreman: ratios vs S&P 500 (≥ 20% cheaper on one, or yield ≥ 1 pt higher), rank within industry, dividend held/raised/cut, surprise tag (event trigger / reinforcing / warning). Neff: totalReturnRatio vs market's, normal-earnings P/E, appreciation potential.
 - Treat recurring "one-time" charges and stock comp as costs. Use ending balances for DSO. Use multi-year averages, not one year.
 - **Keep scoring simple (Chan, Kahneman).** Combine factors with equal weights or a plain rank sum (rank on each factor, flip the sign where lower is better, add up). Greenblatt's two-factor magic formula is the model. Finely tuned weights mostly fit past noise; if a weight tweak makes history look better, suspect overfitting.
 - **Testing a screen or bot honestly (Chan).** Include delisted and bankrupt companies (without them "buy the beaten-down" screens look far too good), use only information available at the time, adjust for splits and dividends, include costs, keep rules few, don't re-tune after seeing results, compare with an index. Paper-trade forward and expect live results about **half as good** as the back-test. Write down why it should work and when it gets switched off.
@@ -352,14 +361,13 @@ Price falls are information about value; portfolio losses are information about 
 | Aphorisms on noise, robustness, advice-givers | The Bed of Procrustes, Taleb (`bed-of-procrustes.md`) |
 | Forced-selling bargains, news drift, stops on value positions, Kelly/half-Kelly, risk budget (CPPI), testing screens and bots, simple scoring | Algorithmic Trading, Chan (`algorithmic-trading-chan.md`, §3 and §9 checklist) |
 | Low-ratio evidence, industry-relative cheapness, surprises (event triggers), forecast error, sell when no longer cheap, time stop, panic playbook, small caps and spreads, 41 rules | Contrarian Investment Strategies, Dreman (`contrarian-investment-strategies.md`, §3, §4 screens and §10 checklist) |
+| Total return ratio, growth band, yield, cyclicals on normal earnings, two sell reasons, recycling, good guys | John Neff on Investing (`john-neff-on-investing.md`, §3, §4 and §10 checklists) |
 | Options: implied vs realized volatility, which tool (stock / cash-secured put / LEAPS), greeks, LEAPS vega and liquidity, early assignment, gap risk near expiry, index skew, earnings IV | Option Volatility & Pricing, Natenberg (`option-volatility-and-pricing.md`, §3 and §9 option-ticket checklist) |
-
-Each reference file follows the same layout: context, core ideas on one page, rulebook by theme, chapter notes, case or story index, traps or mistakes, quotes, people, applying it today for Chris, limits and critiques, cross-reference hooks, glossary, source note.
 
 ## 13. Limits
 
-- The books are mostly from 1923-2013 (Intelligent Investor commentary updated 2024). Dreman's data end in 1996-97; since then value lagged growth for much of 2007-2020, a longer drought than any he tested [outside the books]. Dollar thresholds, P/E norms and bond yields must be translated to today's rates; compare with the company's own history and peers rather than fixed numbers.
+- The books are mostly from 1923-2013 (Intelligent Investor commentary updated 2024; Neff's Windsor data 1964-95). Dreman's data end in 1996-97; since then value lagged growth for much of 2007-2020, a longer drought than any he tested [outside the books]. Dollar thresholds, P/E norms and bond yields must be translated to today's rates; compare with the company's own history and peers rather than fixed numbers.
 - Accounting has changed: goodwill is impairment-tested not amortised, leases are on the balance sheet (count them as debt-like), revenue follows ASC 606, and non-GAAP metrics are everywhere.
 - Mechanical screens decay once widely followed. Net-nets are now rare and often cash-burning.
-- Rules marked as adaptations in the reference files (sizing formula, tranche splits, liquidity rule of thumb, cash-secured puts, the retail version of Chan's forced-selling signals, the half-Kelly worked example, Natenberg's IV rules translated into the stock / cash-secured put / LEAPS choice, the two-step 18-month / 30-36-month time stop combining the catalyst check with Dreman's) are this knowledge base's syntheses, not the authors' words.
+- Rules marked as adaptations in the reference files (sizing formula, tranches, liquidity rule, cash-secured puts, retail forced-selling signals, the IV-to-tool rule, the two-step time stop, Neff's buckets for a small account) are this knowledge base's syntheses, not the authors' words.
 - This skill cannot see the market. Every live number must come from a data tool, with its source stated.
