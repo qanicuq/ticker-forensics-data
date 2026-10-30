@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: packet-commit
+  group: diamond-screen
   cancel-in-progress: false
 
 jobs:
