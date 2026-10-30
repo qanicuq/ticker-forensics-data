@@ -1,11 +1,10 @@
 # Cheap Options Scan
-Run: 2026-10-29 19:40 EDT
+Run: 2026-10-30 19:15 EDT
 
 | Ticker | Spot | Exp | Days | Strike | Call | Put | IV | HV20 | Ratio | Your list | Earnings unk |
 |--------|------|-----|------|--------|------|-----|----|------|-------|-----------|--------------|
-| ORCL | 139.56 | 2026-11-27 | 29 | 140.0 | 8.07 | 8.03 | 0.5134 | 0.6794 | 0.7557 |  |  |
-| AVGO | 345.0 | 2026-11-27 | 29 | 345.0 | 15.97 | 15.4 | 0.4051 | 0.4301 | 0.9417 |  |  |
-| AMZN | 243.79 | 2026-11-27 | 29 | 245.0 | 12.68 | 12.45 | 0.4581 | 0.3631 | 1.2618 |  |  |
+| ORCL | 130.67 | 2026-11-27 | 28 | 131.0 | 8.0 | 7.88 | 0.5504 | 0.709 | 0.7763 |  |  |
+| AVGO | 326.08 | 2026-11-27 | 28 | 325.0 | 16.42 | 14.15 | 0.4253 | 0.4561 | 0.9325 |  |  |
 
 Cheap ratio = option-implied move ÷ the stock's actual move over the last 20 trading days. Under 0.75 = unusually cheap. Not advice; when you buy an option, the most you can lose is what you paid.
 
