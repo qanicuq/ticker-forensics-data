@@ -7,7 +7,7 @@ import csv, json, os, re, subprocess, sys, tempfile
 from datetime import datetime, timezone
 
 OWNER = "qanicuq"
-REPOS = ["trigger-alerts", "btc-bot", "btc-stoch200-paper", "wheel-bot", "spy-0dte-paper"]
+REPOS = ["trigger-alerts", "btc-bot", "btc-stoch200-paper", "wheel-bot", "spy-0dte-paper", "qld-50day-paper"]
 GH = f"https://github.com/{OWNER}"
 
 
@@ -110,6 +110,26 @@ def spy0dte(base):
             "link": f"{GH}/spy-0dte-paper/blob/main/trades.csv"}
 
 
+def qld50(base):
+    start = 10000.0
+    link = f"{GH}/qld-50day-paper/blob/main/trades.csv"
+    eq_path = os.path.join(base, "qld-50day-paper", "equity.csv")
+    if not os.path.exists(eq_path):
+        return {"name": "QLD 50-day", "value": start, "start": start, "pct": 0.0, "bench": None,
+                "asof": "not started", "sub": "Waiting for its first run after a market close", "link": link}
+    rows = list(csv.DictReader(open(eq_path)))
+    st = json.loads(read(base, "qld-50day-paper", "state.json"))
+    value = float(rows[-1]["account_value"])
+    bench = pct(float(rows[-1]["qld_close"]), float(rows[0]["qld_close"]))
+    side = "Holding QLD" if st["holding"] else "All cash"
+    if st.get("pending"):
+        side += f" · {st['pending'].lower()} at next open"
+    curve = [float(r["account_value"]) for r in rows][-60:]
+    return {"name": "QLD 50-day", "value": value, "start": start, "pct": pct(value, start),
+            "bench": bench, "benchLabel": "holding QLD", "asof": rows[-1]["date"] + " close",
+            "sub": side, "curve": curve, "link": link}
+
+
 def main():
     out = sys.argv[1]
     base = sys.argv[2] if len(sys.argv) > 2 else tempfile.mkdtemp()
@@ -130,6 +150,8 @@ def main():
     except Exception as e: errors.append(f"Wheel Bot: {e}")
     try: accounts.append(spy0dte(base))
     except Exception as e: errors.append(f"SPY 0DTE: {e}")
+    try: accounts.append(qld50(base))
+    except Exception as e: errors.append(f"QLD 50-day: {e}")
     data = {"generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "accounts": accounts, "positions": positions, "positions_asof": pos_asof, "errors": errors}
     with open(out, "w") as f:
