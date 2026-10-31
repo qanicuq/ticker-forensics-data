@@ -1,15 +1,12 @@
 # Diamond Finder
 
-Run: Fri Oct 30, 2026 07:17 PM New York time. Prices are the last close from yfinance; fundamentals are from SEC filings. **These are stocks to research, not buys.** Run the interesting ones through Ticker Forensics.
+Run: Fri Oct 30, 2026 09:48 PM New York time. Prices are the last close from yfinance; fundamentals are from SEC filings. **These are stocks to research, not buys.** Run the interesting ones through Ticker Forensics.
 
 **27 of 6030** companies passed every test. Top 25 below, best first.
 
-## Changes since Monday's run
+## Changes since Friday's run
 
-- New: FLXS, PRDO
-- Dropped: ALG (no longer passes), TNC (fell out of top 25)
-- New red flag: RES (losing money over the last 12 months)
-- 1 new Form 10 filing(s): Sagard Private Income Fund Inc.
+- No changes.
 
 ## How a stock gets on this list
 
@@ -21,13 +18,13 @@ Then ranked with equal weight on four things: cheapest on 3-year average earning
 
 | # | Ticker | Company | Price | Mkt cap | P/E (3-yr avg) | P/B | P/E × P/B ≤ 22.5? | Graham tests passed | Net-net? | Near 52-wk low? | Neff ratio | Red flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | **HDSN** | HUDSON TECHNOLOGIES INC /NY | $4.31 | $181.40M | 5.8 | 0.75 | Yes (4.3) | 4/7 | No | Yes (+5.0%) | -1.4 | receivables +25% vs sales +4%; inventory +41% vs sales +4% |
-| 2 | **WETH** | Wetouch Technology Inc. | $0.86 | $11.45M | 1.6 | 0.08 | Yes (0.1) | 5/7 | Yes | Yes (+5.6%) | -12.44 | none |
+| 1 | **HDSN** | HUDSON TECHNOLOGIES INC /NY | $4.31 | $181.40M | 5.8 | 0.75 | Yes (4.3) | 4/7 | No | Yes (+5.1%) | -1.4 | receivables +25% vs sales +4%; inventory +41% vs sales +4% |
+| 2 | **WETH** | Wetouch Technology Inc. | $0.86 | $11.45M | 1.6 | 0.08 | Yes (0.1) | 5/7 | Yes | Yes (+5.7%) | -12.43 | none |
 | 3 | **SHOE** | SHOE STATION GROUP INC | $14.66 | $398.51M | 6.0 | 0.59 | Yes (3.5) | 6/7 | No | No (+43.7%) | -2.57 | last-12-month earnings down 53% from last annual report; inventory +14% vs sales -6% |
 | 4 | **USNA** | USANA HEALTH SCIENCES INC | $14.31 | $264.40M | 6.8 | 0.5 | Yes (3.4) | 4/7 | No | No (+13.8%) | -1.83 | losing money over the last 12 months; inventory +47% vs sales +8% |
 | 5 | **SIGA** | SIGA TECHNOLOGIES INC | $3.04 | $218.42M | 4.4 | 1.32 | Yes (5.8) | 4/7 | No | Yes (+7.4%) | -0.44 | losing money over the last 12 months; inventory -1% vs sales -32% |
 | 6 | **UVV** | UNIVERSAL CORP /VA/ | $41.44 | $1.03B | 12.5 | 0.74 | Yes (9.3) | 5/7 | No | Yes (+8.7%) | -0.44 | none |
-| 7 | **ORGO** | Organogenesis Holdings Inc. | $0.77 | $98.83M | 6.9 | 0.67 | Yes (4.6) | 5/7 | No | Yes (+0.8%) | -7.8 | losing money over the last 12 months; receivables +98% vs sales +17% |
+| 7 | **ORGO** | Organogenesis Holdings Inc. | $0.77 | $98.82M | 6.9 | 0.67 | Yes (4.6) | 5/7 | No | Yes (+0.8%) | -7.8 | losing money over the last 12 months; receivables +98% vs sales +17% |
 | 8 | **PLAB** | PHOTRONICS INC | $27.58 | $1.63B | 12.4 | 1.27 | Yes (15.8) | 4/7 | No | No (+37.6%) | 2.12 | inventory +9% vs sales -2% |
 | 9 | **SD** | SANDRIDGE ENERGY INC | $14.38 | $533.14M | 8.2 | 0.98 | Yes (8.1) | 6/7 | No | No (+23.0%) | -1.18 | none |
 | 10 | **RES** | RPC INC | $6.17 | $1.37B | 12.9 | 1.28 | Yes (16.5) | 5/7 | No | No (+23.4%) | 1.12 | losing money over the last 12 months |
