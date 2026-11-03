@@ -139,8 +139,10 @@ def cmd_packet_start(t):
 
 
 def cmd_packet_wait(t):
-    """Re-read the packet every 30 seconds until it is newer than the dispatch time, for up to 6 minutes.
-    A failed build is dispatched once more (at most two dispatches in all)."""
+    """Re-read the packet every 30 seconds until it is newer than the dispatch time, for up to 6 minutes
+    after the dispatch (or 1 minute from now, whichever is later), so a packet that is already there is
+    always found. If no packet build is queued or running by then, it was lost (failed, or cancelled
+    because GitHub keeps only one waiting run), so it is dispatched once more with a fresh 6 minutes."""
     t = t.upper()
     if os.path.exists(f"wb/{t}/packet.json") and not os.path.exists(f"wb/{t}/packet_t0.txt"):
         print(f"READY wb/{t}/packet.json")
@@ -151,20 +153,26 @@ def cmd_packet_wait(t):
         print("MISSING no build was started; run packet-start first")
         return
     redispatched = False
-    while datetime.now(timezone.utc) - t0 < timedelta(minutes=6):
+    deadline = max(t0 + timedelta(minutes=6), datetime.now(timezone.utc) + timedelta(minutes=1))
+    while True:
         ok, out = _packet_raw(t)
         g = _packet_time(out) if ok else None
         if g and g > t0:
             os.remove(f"wb/{t}/packet_t0.txt")
             print(f"READY {_save_packet(t, out)} (generated {g:%Y-%m-%d %H:%M} UTC)")
             return
-        if not redispatched and datetime.now(timezone.utc) - t0 > timedelta(minutes=1):
-            ok2, runs = gh(["api", f"repos/{REPO_DATA}/actions/workflows/packet.yml/runs?per_page=1"])
+        now = datetime.now(timezone.utc)
+        if now >= deadline:
+            break
+        if not redispatched and now - t0 > timedelta(minutes=1):
+            ok2, runs = gh(["api", f"repos/{REPO_DATA}/actions/workflows/packet.yml/runs?per_page=5"])
             try:
-                run = json.loads(runs)["workflow_runs"][0]
-                if run.get("conclusion") == "failure":
+                busy = any(r.get("status") in ("queued", "in_progress", "waiting", "pending")
+                           for r in json.loads(runs)["workflow_runs"])
+                if ok2 and not busy:
                     _dispatch(t)
                     redispatched = True
+                    deadline = now + timedelta(minutes=6)
             except Exception:
                 pass
         time.sleep(30)
@@ -244,6 +252,28 @@ def cmd_sec(job_path, packet_path, engine_path=None):
                                 + ": if the CFO left suddenly (from the 8-K or news), raise this flag to high.")
         else:
             out["add"]["redFlags"].append({"issue": g["issue"].split(" (8-K")[0], "severity": "medium", "detail": detail})
+    # a significant acquisition or sale (8-K item 2.01, required above about 10% of assets) inside the 12 months
+    # of numbers the value is built on: those months mix the old and the new company (e.g. a spinoff), so the
+    # value is provisional until four full quarters have passed since the deal
+    lastq = (E.get("fin") or {}).get("lastQ")
+    try:
+        start = date.fromisoformat(lastq) - timedelta(days=365)
+    except Exception:
+        start = today - timedelta(days=456)  # report without its data date: assume data ends ~3 months ago
+    for w in gov.get("watch") or []:
+        try:
+            dd = date.fromisoformat(w.get("date") or "")
+        except Exception:
+            continue
+        if "item 2.01" in (w.get("issue") or "") and dd > start + timedelta(days=7) and (out.get("deal") is None or dd > date.fromisoformat(out["deal"]["date"])):
+            out["deal"] = {"date": w.get("date"), "url": w.get("url")}
+    if out.get("deal"):
+        out["add"]["redFlags"].append({"issue": "Value mixes numbers from before and after a big deal", "severity": "high",
+            "detail": f"A significant acquisition or sale of a business (8-K item 2.01) was completed {out['deal']['date']}, inside the "
+                      "last 12 months of figures the value is built on, so they mix the old and the new company. No value buy price "
+                      "or value target is used until four full quarters after the deal."})
+        out["judge"].append(f"8-K item 2.01 on {out['deal']['date']} ({out['deal']['url']}): say in the summary what the deal was "
+                            "(spinoff, sale or acquisition) and that the value is provisional until four quarters after it.")
     # dilution filings in the last 12 months
     dil = []
     for d in gov.get("dilution_filings") or []:
@@ -381,6 +411,21 @@ def cmd_finalize(job_path, patch_path, sec_path, engine_path=None):
         v = "AVOID"
     A["verdict"] = v
     A["rating"] = {"BUY": "BUY", "WATCH": "HOLD", "AVOID": "SELL"}.get(v, A.get("rating"))
+    if S.get("deal"):  # value provisional (see cmd_sec): no value price, value target or value score
+        for k in ("intrinsicValue", "buyBelow", "valueTargets", "marginOfSafety"):
+            A[k] = None
+        A["valueFit"] = False
+        V = A.setdefault("value", {})
+        why = (f"Provisional value: a big acquisition or sale of a business was completed {S['deal']['date']}, inside the "
+               "last 12 months of figures, so they mix the old and the new company. The value, buy-below price and value "
+               "target are not used until four full quarters after the deal; the report switches back on its own.")
+        V.update(fit=False, provisional=True, estimate=V.get("iv"), fitNote=why)
+        ep = A.get("exitPlan") or {}
+        if A.get("entryType") == "value":
+            A["entryPrice"] = None
+            ep["entry"] = None
+        if "estimated value" in str(ep.get("targetBasis", "")).lower():
+            ep["target"] = None
     if v == "AVOID":
         A["entryPrice"] = None
     if v != orig_verdict and "verdictWhy" not in P:
@@ -394,6 +439,8 @@ def cmd_finalize(job_path, patch_path, sec_path, engine_path=None):
     if S["allWithin2"]:
         c += 5
     A["confidence"] = int(max(30, min(85, round(c))))
+    if S.get("deal"):
+        A["confidence"] = min(A["confidence"], 35)
 
     # special situation
     if S.get("special"):
@@ -439,7 +486,8 @@ def cmd_finalize(job_path, patch_path, sec_path, engine_path=None):
     t = now_ms()
     final = {"status": "done", "step": "Done", "finishedAt": t, "updatedAt": t, "error": {"__delete__": True},
              "engine": {"__delete__": True}, "quote": E.get("quote"), "tech": E.get("tech"), "chart": E.get("chart"),
-             "filings": filings, "missing": missing, "analysis": A}
+             "filings": filings, "missing": missing, "analysis": A,
+             "dataThrough": (E.get("fin") or {}).get("lastQ")}
     if notes:
         A.setdefault("value", {}).setdefault("notes", []).extend(notes)
     size = len(json.dumps(final))
@@ -537,6 +585,8 @@ def cmd_trigger(final_path, ticker, check=None):
                 y = (f"id: {t}-forensic-{today}\nsource: forensic\nticker: {t}\naction: BUY\nconditions:\n{cond}"
                      f"exit_plan: {{stop: {{price: {stop}}}, target: {{price: {target}}}, max_hold_days: {hold}}}\n"
                      f"recommendation: {_yaml_str(rec)}\nreport_date: {today}\nexpires: {expires}\n")
+                if final.get("dataThrough"):
+                    y += f"data_through: {final['dataThrough']}\n"
                 ok, err = _send(y)
                 if ok:
                     entry = f"buy at or below {money(X)} ({basis}); sell at {money(target)}; stop {money(stop)}; {int(months or 6)}-month time stop{wait}"
