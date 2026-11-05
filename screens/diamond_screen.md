@@ -1,12 +1,14 @@
 # Diamond Finder
 
-Run: Mon Nov 02, 2026 11:02 PM New York time. Prices are the last close from yfinance; fundamentals are from SEC filings. **These are stocks to research, not buys.** Run the interesting ones through Ticker Forensics.
+Run: Wed Nov 04, 2026 10:45 PM New York time. Prices are the last close from yfinance; fundamentals are from SEC filings. **These are stocks to research, not buys.** Run the interesting ones through Ticker Forensics.
 
-**26 of 6036** companies passed every test. Top 25 below, best first.
+**26 of 6033** companies passed every test. Top 25 below, best first.
 
-## Changes since Friday's run
+## Changes since Monday's run
 
-- No changes.
+- New: ALG
+- Dropped: TGLS (fell out of top 25)
+- 1 new Form 10 filing(s): QUALSTAR CORP
 
 ## How a stock gets on this list
 
@@ -18,31 +20,31 @@ Then ranked with equal weight on four things: cheapest on 3-year average earning
 
 | # | Ticker | Company | Price | Mkt cap | P/E (3-yr avg) | P/B | P/E × P/B ≤ 22.5? | Graham tests passed | Net-net? | Near 52-wk low? | Neff ratio | Red flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | **HDSN** | HUDSON TECHNOLOGIES INC /NY | $4.23 | $178.03M | 5.7 | 0.73 | Yes (4.2) | 4/7 | No | Yes (+3.2%) | -1.42 | receivables +25% vs sales +4%; inventory +41% vs sales +4% |
-| 2 | **WETH** | Wetouch Technology Inc. | $0.87 | $11.64M | 1.6 | 0.08 | Yes (0.1) | 5/7 | Yes | Yes (+7.4%) | -12.23 | none |
-| 3 | **SHOE** | SHOE STATION GROUP INC | $14.70 | $399.60M | 6.0 | 0.59 | Yes (3.6) | 6/7 | No | No (+44.1%) | -2.56 | last-12-month earnings down 53% from last annual report; inventory +14% vs sales -6% |
-| 4 | **SIGA** | SIGA TECHNOLOGIES INC | $2.95 | $211.96M | 4.2 | 1.28 | Yes (5.4) | 4/7 | No | Yes (+4.2%) | -0.39 | losing money over the last 12 months; inventory -1% vs sales -32% |
-| 5 | **USNA** | USANA HEALTH SCIENCES INC | $14.72 | $271.97M | 7.0 | 0.52 | Yes (3.6) | 4/7 | No | No (+17.1%) | -1.78 | losing money over the last 12 months; inventory +47% vs sales +8% |
-| 6 | **UVV** | UNIVERSAL CORP /VA/ | $40.65 | $1.01B | 12.3 | 0.73 | Yes (8.9) | 5/7 | No | Yes (+6.7%) | -0.44 | none |
-| 7 | **ORGO** | Organogenesis Holdings Inc. | $0.76 | $97.28M | 6.8 | 0.66 | Yes (4.5) | 5/7 | No | Yes (+3.6%) | -7.92 | losing money over the last 12 months; receivables +98% vs sales +17% |
-| 8 | **PLAB** | PHOTRONICS INC | $27.40 | $1.62B | 12.4 | 1.26 | Yes (15.6) | 4/7 | No | No (+36.7%) | 2.13 | inventory +9% vs sales -2% |
-| 9 | **RES** | RPC INC | $5.92 | $1.31B | 12.3 | 1.23 | Yes (15.2) | 5/7 | No | No (+18.4%) | 1.17 | losing money over the last 12 months |
-| 10 | **SD** | SANDRIDGE ENERGY INC | $13.44 | $498.29M | 7.7 | 0.92 | Yes (7.1) | 6/7 | No | No (+14.4%) | -1.23 | none |
-| 11 | **HGBL** | Heritage Global Inc. | $1.25 | $43.30M | 6.1 | 0.83 | Yes (5.1) | 4/7 | No | No (+23.8%) | 0.34 | losing money over the last 12 months |
-| 12 | **ETD** | ETHAN ALLEN INTERIORS INC | $21.11 | $532.02M | 10.3 | 1.13 | Yes (11.6) | 4/7 | No | No (+15.5%) | -0.93 | inventory +5% vs sales -6% |
-| 13 | **IMXI** | International Money Express, Inc. | $9.52 | $287.61M | 5.7 | 1.7 | Yes (9.7) | 4/7 | No | No (+14.4%) | -0.98 | none |
-| 14 | **INVA** | Innoviva, Inc. | $21.02 | $1.52B | 9.6 | 1.23 | Yes (11.8) | 4/7 | No | No (+17.8%) | -1.32 | none |
-| 15 | **YELP** | YELP INC | $19.81 | $1.07B | 8.5 | 1.67 | Yes (14.2) | 5/7 | No | No (+14.7%) | 5.2 | none |
-| 16 | **RAVE** | RAVE RESTAURANT GROUP, INC. | $2.16 | $30.70M | 11.4 | 1.77 | Yes (20.3) | 3/7 | No | Yes (+4.9%) | -2.12 | receivables +23% vs sales +7% |
-| 17 | **VC** | VISTEON CORP | $76.05 | $1.88B | 5.3 | 1.33 | Yes (7.0) | 5/7 | No | Yes (+8.8%) | 5.31 | none |
-| 18 | **FLXS** | FLEXSTEEL INDUSTRIES INC | $72.50 | $301.74M | 14.2 | 2.28 | No (32.4) | 5/7 | No | No (+113.2%) | 11.76 | receivables +21% vs sales +4% |
-| 19 | **LZB** | LA-Z-BOY INC | $31.70 | $1.27B | 11.8 | 1.25 | Yes (14.7) | 4/7 | No | No (+11.7%) | -0.5 | none |
-| 20 | **MLR** | MILLER INDUSTRIES INC /TN/ | $51.79 | $587.93M | 12.2 | 1.4 | Yes (17.0) | 5/7 | No | No (+45.0%) | 0.42 | inventory -1% vs sales -37% |
-| 21 | **EBF** | ENNIS, INC. | $21.18 | $536.23M | 12.8 | 1.71 | Yes (21.9) | 5/7 | No | No (+29.7%) | 1.19 | inventory +41% vs sales -1% |
-| 22 | **PRDO** | PERDOCEO EDUCATION Corp | $29.66 | $1.86B | 12.2 | 1.8 | Yes (22.0) | 4/7 | No | No (+11.3%) | 0.85 | none |
-| 23 | **TGLS** | Tecnoglass Holdings Inc. | $39.96 | $1.77B | 10.6 | 2.25 | No (23.7) | 5/7 | No | No (+17.4%) | 2.28 | inventory +53% vs sales +10% |
-| 24 | **AMPH** | Amphastar Pharmaceuticals, Inc. | $27.03 | $1.15B | 8.7 | 1.5 | Yes (13.1) | 4/7 | No | No (+62.3%) | 1.03 | inventory +15% vs sales -2% |
-| 25 | **LEGH** | Legacy Housing Corp | $32.16 | $764.82M | 14.5 | 1.36 | Yes (19.8) | 3/7 | No | No (+75.9%) | -0.24 | cash flow only 38% of earnings (3 yrs); receivables +37% vs sales -11%; inventory +6% vs sales -11% |
+| 1 | **HDSN** | HUDSON TECHNOLOGIES INC /NY | $4.41 | $185.61M | 6.0 | 0.76 | Yes (4.6) | 4/7 | No | Yes (+7.6%) | -1.37 | receivables +25% vs sales +4%; inventory +41% vs sales +4% |
+| 2 | **WETH** | Wetouch Technology Inc. | $0.86 | $11.56M | 1.6 | 0.08 | Yes (0.1) | 5/7 | Yes | Yes (+6.7%) | -12.32 | none |
+| 3 | **UVV** | UNIVERSAL CORP /VA/ | $39.75 | $989.75M | 12.0 | 0.71 | Yes (8.6) | 5/7 | No | Yes (+4.3%) | -0.44 | none |
+| 4 | **SHOE** | SHOE STATION GROUP INC | $15.90 | $432.22M | 6.5 | 0.64 | Yes (4.2) | 6/7 | No | No (+55.9%) | -2.41 | last-12-month earnings down 53% from last annual report; inventory +14% vs sales -6% |
+| 5 | **USNA** | USANA HEALTH SCIENCES INC | $14.33 | $264.77M | 6.8 | 0.5 | Yes (3.4) | 4/7 | No | No (+14.0%) | -1.82 | losing money over the last 12 months; inventory +47% vs sales +8% |
+| 6 | **SIGA** | SIGA TECHNOLOGIES INC | $3.15 | $226.33M | 4.5 | 1.37 | Yes (6.2) | 4/7 | No | No (+11.3%) | -0.5 | losing money over the last 12 months; inventory -1% vs sales -32% |
+| 7 | **PLAB** | PHOTRONICS INC | $27.38 | $1.62B | 12.3 | 1.26 | Yes (15.6) | 4/7 | No | No (+36.6%) | 2.13 | inventory +9% vs sales -2% |
+| 8 | **SD** | SANDRIDGE ENERGY INC | $12.63 | $468.26M | 7.2 | 0.86 | Yes (6.2) | 6/7 | No | Yes (+5.6%) | -1.28 | none |
+| 9 | **RES** | RPC INC | $5.90 | $1.31B | 12.3 | 1.23 | Yes (15.1) | 5/7 | No | No (+18.0%) | 1.18 | losing money over the last 12 months |
+| 10 | **ORGO** | Organogenesis Holdings Inc. | $0.87 | $111.95M | 7.8 | 0.76 | Yes (5.9) | 5/7 | No | No (+19.2%) | -6.89 | losing money over the last 12 months; receivables +98% vs sales +17% |
+| 11 | **HGBL** | Heritage Global Inc. | $1.28 | $44.34M | 6.3 | 0.85 | Yes (5.3) | 4/7 | No | No (+26.7%) | 0.33 | losing money over the last 12 months |
+| 12 | **IMXI** | International Money Express, Inc. | $8.31 | $251.06M | 5.0 | 1.48 | Yes (7.4) | 4/7 | No | Yes (+3.7%) | -1.12 | none |
+| 13 | **ETD** | ETHAN ALLEN INTERIORS INC | $21.38 | $538.83M | 10.4 | 1.14 | Yes (11.9) | 4/7 | No | No (+17.0%) | -0.93 | inventory +5% vs sales -6% |
+| 14 | **INVA** | Innoviva, Inc. | $21.26 | $1.54B | 9.7 | 1.25 | Yes (12.1) | 4/7 | No | No (+19.0%) | -1.31 | none |
+| 15 | **RAVE** | RAVE RESTAURANT GROUP, INC. | $2.19 | $31.12M | 11.6 | 1.8 | Yes (20.8) | 3/7 | No | Yes (+6.3%) | -2.09 | receivables +23% vs sales +7% |
+| 16 | **YELP** | YELP INC | $22.05 | $1.20B | 9.5 | 1.86 | Yes (17.6) | 5/7 | No | No (+27.7%) | 4.67 | none |
+| 17 | **VC** | VISTEON CORP | $80.28 | $1.98B | 5.6 | 1.4 | Yes (7.8) | 5/7 | No | No (+14.9%) | 5.02 | none |
+| 18 | **MLR** | MILLER INDUSTRIES INC /TN/ | $52.07 | $591.11M | 12.2 | 1.41 | Yes (17.2) | 5/7 | No | No (+45.8%) | 0.41 | inventory -1% vs sales -37% |
+| 19 | **FLXS** | FLEXSTEEL INDUSTRIES INC | $74.99 | $312.11M | 14.7 | 2.36 | No (34.7) | 5/7 | No | No (+117.4%) | 11.36 | receivables +21% vs sales +4% |
+| 20 | **LZB** | LA-Z-BOY INC | $33.06 | $1.32B | 12.3 | 1.31 | Yes (16.0) | 4/7 | No | No (+16.4%) | -0.49 | none |
+| 21 | **ALG** | ALAMO GROUP INC | $144.12 | $1.75B | 14.8 | 1.48 | Yes (21.8) | 5/7 | No | Yes (+8.1%) | 0.44 | inventory +12% vs sales -2% |
+| 22 | **EBF** | ENNIS, INC. | $21.11 | $534.46M | 12.8 | 1.7 | Yes (21.7) | 5/7 | No | No (+29.3%) | 1.19 | inventory +41% vs sales -1% |
+| 23 | **PRDO** | PERDOCEO EDUCATION Corp | $29.99 | $1.88B | 12.4 | 1.82 | Yes (22.5) | 4/7 | No | No (+12.5%) | 0.84 | none |
+| 24 | **AMPH** | Amphastar Pharmaceuticals, Inc. | $28.02 | $1.19B | 9.0 | 1.55 | Yes (14.0) | 4/7 | No | No (+68.3%) | 1.0 | inventory +15% vs sales -2% |
+| 25 | **LEGH** | Legacy Housing Corp | $31.78 | $755.78M | 14.4 | 1.34 | Yes (19.3) | 3/7 | No | No (+73.8%) | -0.24 | cash flow only 38% of earnings (3 yrs); receivables +37% vs sales -11%; inventory +6% vs sales -11% |
 
 Graham tests = the 7 enterprising-investor tests in SKILL.md. Red flags are quick forensic checks (SKILL.md section 4); a flag means look harder, not automatically avoid.
 
@@ -56,19 +58,19 @@ The SEC has no current company-wide share count for these (usually because they 
 
 ## New Form 10 filings this week (often spinoffs, SKILL.md section 3)
 
-- [Sagard Private Income Fund Inc.](https://www.sec.gov/Archives/edgar/data/2133018/0001193125-26-436342.txt) — 10-12G, filed 20261028
+- [QUALSTAR CORP](https://www.sec.gov/Archives/edgar/data/758938/0001096906-26-001670.txt) — 10-12G, filed 20261104
 
 ## Why other companies were left out
 
-- a loss in the last 5 years: 2111
+- a loss in the last 5 years: 2109
 - under 5 years of annual reports: 1656
-- not US GAAP (foreign filer): 638
+- not US GAAP (foreign filer): 637
 - no current assets/liabilities (banks, insurers, REITs): 453
-- current ratio under 1.5: 427
-- market cap over $2B: 185
-- debt over 110% of net current assets: 168
+- current ratio under 1.5: 423
+- market cap over $2B: 183
+- debt over 110% of net current assets: 172
 - no SEC company facts (often foreign filers): 158
-- P/E over 15 on 3-yr average earnings: 58
+- P/E over 15 on 3-yr average earnings: 60
 - gap in annual reports: 39
 - average volume under 50K shares: 25
 - missing total liabilities or equity: 21
