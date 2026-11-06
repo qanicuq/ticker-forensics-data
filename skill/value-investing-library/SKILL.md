@@ -58,8 +58,8 @@ When the user names a ticker, follow §11's analysis template. When building a t
 **Dreman's contrarian screens** (1,500 largest US stocks, 1970-96). The cheapest 20% by low P/E earned 19.0% a year, low P/B 18.8%, low P/CF 18.0%, high yield 16.1%, vs 14.9% for the market; they also fell less in down quarters and kept winning for 2-8 years after purchase.
 - *Quick test:* an established company ≥ 20% below the S&P 500 on P/E, P/CF or P/B, or yield ≥ 1 point above the market's.
 - *Industry-relative:* the cheapest 20% within each industry earned 17.7-18.4% and beat the favorites 80-90% of the time, even in expensive industries (a separate effect from absolute cheapness).
-- *Small caps only when cheap:* the small-cap effect is really a low-P/E effect. Also require debt ≤ ~60% of capital, a rising above-market dividend, above-average growth.
-- Avoid IPOs and concept stocks (IPOs 1970-90: 3% a year vs 11.3% for the S&P 500).
+- *Small caps only when cheap:* the small-cap effect is really a low-P/E effect ($100-500m: low P/E 18.6% vs high P/E 12.5%). Also require debt ≤ ~60% of capital, a rising above-market dividend, above-average growth.
+- Avoid IPOs and concept stocks: 4,753 IPOs (1970-90) earned 3% a year vs 11.3% for the S&P 500; the median IPO lost 39%.
 
 **Lynch's six categories.** Classify first; the category sets realistic upside, the numbers that matter and the sell rule. Re-classify as the story changes.
 
@@ -165,7 +165,7 @@ If ROC = R, growth is worth nothing at any speed. Growth multiples are smaller t
 - Historical range: buy when P/E is in the low part of the stock's own range or dividend yield in the high part.
 - **Cyclicals (Neff):** value on normal (mid-cycle) earnings; "never capitalize peak earnings" (the P/E shrinks before the peak). Buy at a rock-bottom P/E ~6-9 months before earnings turn; sell into rising demand.
 - Leverage shrinks the margin of safety: with $100 of assets and $80 of debt, a 10% asset error halves the equity.
-- **Mark forecasts down (Dreman).** Consensus estimates missed by 44% on average (1973-96) and run too high. Cut any forward estimate, avoid methods that need precise forecasts, and expect the worst case to be worse than your first guess.
+- **Mark forecasts down (Dreman).** Consensus quarterly estimates missed by 44% on average (1973-96), only ~1 in 4 within ±5%, and run too high (S&P growth forecast 21.9%/yr vs 7.8% actual, 1982-97). Cut any forward estimate, avoid methods that need precise forecasts, and expect the worst case to be worse than your first guess.
 
 ---
 
@@ -255,7 +255,7 @@ Price falls are information about value; portfolio losses are information about 
 - Keep a written journal of every buy and sell with the reason; review losers in quiet periods.
 - **Low turnover (Dreman).** 0.5% per trade at 100% turnover costs ~2.5% of capital in 5 years. "Buy and weed": replace only stocks that reached market ratios or hit the time stop.
 
-**Panic playbook (Dreman).** (1) Buy in a panic, don't sell (after 11 postwar crises the Dow was up 25.8% a year later). (2) Write down the reasons given for lower prices and check them; most fall apart. (3) **Value lifelines:** compare P/E, P/B and yield before, at and after the crisis; keep normal levels on the watchlist. (4) Financial strength first (banks: losses reserved, capital well above minimum, dividend kept). (5) Spread across the hated group (≤ 2% per name) and buy in tranches: "what looks dirt cheap can often drop another 20% or 30%."
+**Panic playbook (Dreman).** (1) Buy in a panic, don't sell: after 11 postwar crises the Dow was up 25.8% a year after the low and 37.5% two years after. (2) Write down the reasons given for lower prices and check them; most fall apart. (3) **Value lifelines:** compare P/E, P/B and yield before, at and after the crisis (1990 banks: P/E 9.4 → 6.3, yield 4.1% → 8.8%); keep normal levels on the watchlist. (4) Financial strength first (banks: losses reserved, capital well above minimum, dividend kept). (5) Spread across the hated group (≤ 2% per name) and buy in tranches: "what looks dirt cheap can often drop another 20% or 30%."
 
 **Hedging (for a value investor):**
 - The main hedges are sizing, cash and buying cheap.
@@ -300,9 +300,9 @@ Price falls are information about value; portfolio losses are information about 
 - Never buy right after a big rise or sell right after a big drop (Graham). When a holding falls: what changed besides the price? Divide your cost by ten: would you still hold? If the facts changed, sell; if not, consider buying more within limits.
 - The method must fit the person; breaking discipline once makes it easier the next time.
 - Be patient: value investing means being lonely, early and sometimes lagging in bull markets. There are no called strikes; wait for the fat pitch.
-- **Most quit right before it works (Dreman).** Cheap stocks beat the market only ~60/40 per quarter but in 87-94% of 5- and 10-year periods.
+- **Most quit right before it works (Dreman).** Value lagged for years after 1988 and investors gave up at the bottom, just before it won for years: "virtually every time". Cheap stocks beat the market only ~60/40 per quarter but in 87-94% of 5- and 10-year periods.
 - **Contrarian, not stubborn (Neff).** "Eventually you have to be right on fundamentals." When media and consensus agree, watch for a turn. His Citicorp averaging down ($33 → $8) worked only after costs far above plan and a dividend cut: survival and size limits first.
-- **Confident voices pull your opinion unnoticed**. Write your own estimate before reading opinions. Manias repeat. Overreaction is predictable; its timing is not.
+- **Confident voices pull your opinion unnoticed** (one confident person shifted others' estimates up to 80%). Write your own estimate before reading opinions. Manias repeat: easy-wealth image, expert cheerleaders, panic, "this time is different". Overreaction is predictable; its timing is not.
 
 ---
 
