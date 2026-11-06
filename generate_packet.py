@@ -227,9 +227,9 @@ def last_4_quarters(entries):
     return [v for _, v in ordered]
 
 def pick_revenue_tag(gaap):
-    tags = [
+    tags = [  # "Revenues" (the income statement's total) wins a tie: the contract-revenue tag can leave out
+        "Revenues",  # regulated, lease or hedging revenue (e.g. OGE, NFG), which made revenue look 6-29% off
         "RevenueFromContractWithCustomerExcludingAssessedTax",
-        "Revenues",
         "RevenueFromContractWithCustomerIncludingAssessedTax",
         "SalesRevenueNet",
     ]
@@ -245,16 +245,26 @@ try:
         raise StopIteration
     facts = sec_facts()
     gaap = facts.get("us-gaap", {})
-    shares = facts.get("dei", {}).get("EntityCommonStockSharesOutstanding", {}).get("units", {}).get("shares", [])
-    if not shares:  # some filers only tag the balance-sheet share count
-        shares = gaap.get("CommonStockSharesOutstanding", {}).get("units", {}).get("shares", [])
-    if not shares:
-        packet["errors"].append("sec facts: no shares-outstanding figure filed")
-    if shares and last_close:
+    # share count: the cover-page figure, else the balance-sheet one; either is used only if it is under ~13 months
+    # old (some filers stopped filing it in this form, e.g. Nike's last one is from 2015, which made market cap 74% off)
+    total_shares, stale_end = None, None
+    for src in (facts.get("dei", {}).get("EntityCommonStockSharesOutstanding", {}),
+                gaap.get("CommonStockSharesOutstanding", {})):
+        shares = src.get("units", {}).get("shares", [])
+        if not shares:
+            continue
         latest_accn = max(shares, key=lambda e: (e["filed"], e["end"]))["accn"]
         latest = [e for e in shares if e["accn"] == latest_accn]
         latest_end = max(e["end"] for e in latest)
+        if (datetime.utcnow() - datetime.fromisoformat(latest_end)).days > 400:
+            stale_end = stale_end or latest_end
+            continue
         total_shares = sum(e["val"] for e in latest if e["end"] == latest_end)  # sums share classes
+        break
+    if total_shares is None:
+        packet["errors"].append(f"sec facts: newest SEC share count is from {stale_end}, too old to check market cap"
+                                if stale_end else "sec facts: no shares-outstanding figure filed")
+    elif last_close:
         sec_market_cap = round2(total_shares * last_close)
     eps = last_4_quarters(gaap.get("EarningsPerShareDiluted", {}).get("units", {}).get("USD/shares", []))
     if eps and last_close and sum(eps) > 0:
@@ -353,7 +363,7 @@ def governance_from_submissions(sub, today=None):
     return gov, shown
 
 ANNUAL_TAGS = {
-    "revenue": ["RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "RevenueFromContractWithCustomerIncludingAssessedTax", "SalesRevenueNet"],
+    "revenue": ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "RevenueFromContractWithCustomerIncludingAssessedTax", "SalesRevenueNet"],
     "operating_income": ["OperatingIncomeLoss"],
     "net_income": ["NetIncomeLoss"],
     "cfo": ["NetCashProvidedByUsedInOperatingActivities"],
@@ -381,6 +391,7 @@ def annual_series(gaap, tags, years=5):
 try:
     from edgar import Company as _Co
     _cik = int(_Co(TICKER).cik)
+    packet["cik"] = _cik  # lets the worker link straight to the SEC figures when sources disagree
     gov, shown = governance_from_submissions(sec_get(f"https://data.sec.gov/submissions/CIK{_cik:010d}.json"))
     packet["governance"] = gov
     if shown:
