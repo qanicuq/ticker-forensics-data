@@ -93,13 +93,18 @@ function engine(D){
   const metric=(name,value,status,detail)=>metrics.push({name,value,status,detail});
   F.rev=ttm(iQ,"total_revenue")??N(iA[0]?.total_revenue);
   const revPrev=ttm(iQ,"total_revenue",4)??N(iA[1]?.total_revenue);
-  F.revG=F.rev&&revPrev?F.rev/revPrev-1:null;
+  /* growth compares like with like: 12 months vs the 12 before, else fiscal year vs the year before */
+  const rev12=ttm(iQ,"total_revenue"), rev12Prev=ttm(iQ,"total_revenue",4);
+  const revA0=N(iA[0]?.total_revenue), revA1=N(iA[1]?.total_revenue);
+  F.revG=rev12&&rev12Prev?rev12/rev12Prev-1:revA0&&revA1?revA0/revA1-1:null;
+  F.revGBasis=rev12&&rev12Prev?"over the last 12 months vs the 12 months before":"in the last fiscal year vs the year before";
   F.ebit=ttm(iQ,"op_income")??N(iA[0]?.op_income);
   F.ni=ttm(iQ,"net_income")??N(iA[0]?.net_income);
   F.cfo=ttm(cQ,"cfo")??N(cA[0]?.cfo);
   F.capex=ttm(cQ,"capex")??N(cA[0]?.capex);
   F.da=ttm(cQ,"dna")??N(cA[0]?.dna);
   F.fcf=F.cfo!=null&&F.capex!=null?F.cfo+F.capex:null;
+  F.fcfBasis=ttm(cQ,"cfo")!=null&&ttm(cQ,"capex")!=null?"last 12 months":"last fiscal year";
   const b0=bQ[0]||bA[0]||null;
   let shares=N(b0?.common_shares_out)||N(iQ[0]?.diluted_avg_shares)||N(iA[0]?.diluted_avg_shares)||(mcap&&price?mcap/price:null);
   /* share classes and ADRs: Webull's eps_ttm is per traded share, so profit ÷ eps_ttm is the share count the price applies to */
@@ -138,7 +143,8 @@ function engine(D){
   const cyclical=CYCLICAL.test(industry)||(avgAdj?sdM/Math.abs(avgAdj)>0.5:false);
 
   /* ---- intrinsic value (Greenwald EPV, Graham number, asset values) ---- */
-  const tsyRow=(findArr(D.tsy,x=>x&&x.date&&x.value!=null)||[])[0];
+  /* newest row with a number: daily series list holidays as "." */
+  const tsyRow=(findArr(D.tsy,x=>x&&x.date&&x.value!=null)||[]).find(x=>N(x.value)!=null);
   const tsy=N(tsyRow?.value)!=null?N(tsyRow.value)/100:null;
   const rf=tsy??0.045;
   let prem=0.03; if(cyclical||vol60>0.45) prem+=0.02; if(mcap&&mcap<2e9) prem+=0.01;
@@ -416,7 +422,7 @@ function engine(D){
   X.grahamStrength=!isFin&&F.curRatio!=null&&ca!=null?(F.curRatio>=1.5&&(N(b0?.total_lt_debt)||0)<=1.1*(ca-cl)):null;
   if(X.grahamStrength===true) strengths.push("Passes Graham's financial-strength test (current ratio ≥ 1.5, long-term debt ≤ 110% of working capital)");
   else if(X.grahamStrength===false) weaknesses.push("Fails Graham's financial-strength test (current ratio ≥ 1.5 and long-term debt ≤ 110% of working capital)");
-  if(F.revG!=null){ if(F.revG>0.1) strengths.push(`Revenue up ${pc(F.revG)} from a year ago`); else if(F.revG<0) weaknesses.push(`Revenue down ${pc(-F.revG)} from a year ago`); }
+  if(F.revG!=null){ if(F.revG>0.1) strengths.push(`Revenue up ${pc(F.revG)} ${F.revGBasis}`); else if(F.revG<0) weaknesses.push(`Revenue down ${pc(-F.revG)} ${F.revGBasis}`); }
   if(F.om!=null){ if(F.om>0.2) strengths.push(`Strong operating margin (${pc(F.om)})`); else if(F.om<0) weaknesses.push(`Losing money on operations (margin ${pc(F.om)})`); }
   if(F.fcf!=null&&F.fcf<0) weaknesses.push(`Burned ${fmtBig(-F.fcf)} of free cash over the last year`);
   if(mcap&&F.netCash<-0.3*mcap) weaknesses.push("Debt is large relative to the company's value");
@@ -532,7 +538,9 @@ function engine(D){
   const nextE=al?.start_date||null;
   const advDollar=v20*price;
   /* pre-buy checklist (NMW §11.B, Greenwald §3.6) */
-  const daysToE=nextE?Math.round((new Date(nextE)-Date.now())/864e5):null;
+  /* calendar days from today in New York (not hours from now, which undercounts in the evening) */
+  const todayNY=new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"});
+  const daysToE=nextE?Math.round((Date.parse(String(nextE).slice(0,10))-Date.parse(todayNY))/864e5):null;
   /* has "normal" moved? (Bernstein) shrinking sales, a margin below every recent year's, or a falling gross margin */
   const oldNormal=[], priorM=ttmAdjM!=null?margins.slice(1):margins;
   if(iA.length>=3&&cagr!=null&&cagr<0) oldNormal.push(`sales shrinking ${pct(cagr)} a year over ${iA.length-1} years`);
@@ -542,7 +550,7 @@ function engine(D){
     {item:"Edge: why is the market wrong, in one sentence?",status:"you",note:O.neglected?"Neglected: few analysts or low institutional ownership.":ret(126)!=null&&ret(126)<-0.25?`Sold off ${pc(-ret(126))} in six months.`:"Write it down before buying."},
     {item:"Thesis-break condition written down",status:"auto",note:exitPlan.thesisBreak[1]},
     {item:"Downside sized: loss to bear value within 1–2% of the account",status:"auto",note:`Bear value $${fmt(V.bear)} (${V.bearBasis.toLowerCase()}). See sizing below.`},
-    {item:"Binary event ahead",status:daysToE!=null&&daysToE>=0&&daysToE<=30?"warn":"ok",note:nextE?`Earnings ${nextE}${daysToE!=null&&daysToE>=0?` (in ${daysToE} days)`:""}.`:"No earnings date found."},
+    {item:"Binary event ahead",status:daysToE!=null&&daysToE>=0&&daysToE<=30?"warn":"ok",note:nextE?`Earnings ${nextE}${daysToE!=null&&daysToE>=0?` (in ${daysToE} days)`:""}, Webull's date: it may be an estimate until the company announces it.`:"No earnings date found."},
     {item:"Liquidity: could you exit in a few days?",status:advDollar<1e6?"warn":"ok",note:`About $${fmtBig(advDollar)} trades a day.`},
     {item:"Catalyst: what makes the market see the value?",status:"you",note:"Full analysis looks for one in filings and news."},
     {item:"Price behaviour: has the selling stopped?",status:priceScore>=75?"ok":"warn",note:priceState+"."},
@@ -569,7 +577,7 @@ function engine(D){
       valueTargets:V.fit?{bull:V.bull,base:V.iv,bear:V.bear}:null, intrinsicValue:V.fit?V.iv:null, buyBelow:V.buyBelow, entryPrice:verdict==="AVOID"?null:entry, entryType, entryBasis, marginOfSafety:V.mos, valueFit:V.fit,
       value:V, newsDrop, worstDrop:worstDD, category:{name:category,note:CAT_NOTES[category],cyclical,cagr,special:null},
       forensic:{metrics,...X,sustainableGrowth:sust}, owners:O, priceBehaviour:{state:priceState,signals:pb}, exitPlan, checklist,
-      fundamentals:{overview:industry?`${name} · ${industry}`:"",strengths,weaknesses,valuation:N(s.pe_ratio)?`P/E ${fmt(s.pe_ratio,1)}, P/S ${fmt(s.ps_ratio,1)}${F.fcf!=null&&mcap?`, free-cash-flow yield ${pc(F.fcf/mcap,1)}`:""}.`:""},
+      fundamentals:{overview:industry?`${name} · ${industry}`:"",strengths,weaknesses,valuation:N(s.pe_ratio)?`P/E ${fmt(s.pe_ratio,1)}, P/S ${fmt(s.ps_ratio,1)}${F.fcf!=null&&mcap?`, free-cash-flow yield ${pc(F.fcf/mcap,1)} (${F.fcfBasis})`:""}.`:""},
       technicals:{trend,momentum:`MACD ${macdHist>0?"positive":"negative"}, RSI ${fmt(rsi,0)}, 6-month return ${pct(ret(126))}.`,support:[`$${fmt(lo60)} (60-day low)`].concat(s200&&s200<price?[`$${fmt(s200)} (200-day)`]:[]),resistance:[`$${fmt(hi60)} (60-day high)`].concat(N(s.fifty_two_wk_high)?[`$${fmt(s.fifty_two_wk_high)} (52-week high)`]:[]),notes},
       redFlags:flags,walkAway:[],news:[],recentEvents:nextE?[{date:nextE,event:"Next earnings report",impact:al?.eps_est?`EPS estimate ${fmt(al.eps_est)} vs ${fmt(al.eps_ly)} a year ago`:""}]:[],
       analystView,catalysts:nextE?[`Earnings on ${nextE}`]:[],risks:flags.map(f=>f.issue),

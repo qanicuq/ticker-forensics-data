@@ -205,7 +205,7 @@ def cmd_sec(job_path, packet_path, engine_path=None):
     today = today_ny()
     out = {"packet": False, "add": {"redFlags": [], "walkAway": [], "risks": [], "valueNotes": []},
            "disagreements": 0, "allWithin2": False, "compared": [], "special": None, "filings": [],
-           "judge": [], "valuationSentence": "", "missing": [], "serious": []}
+           "judge": [], "valuationSentence": "", "missing": [], "serious": [], "unverified": []}
 
     pk = None
     if packet_path and packet_path != "-":
@@ -215,6 +215,7 @@ def cmd_sec(job_path, packet_path, engine_path=None):
             pk = None
     if not pk:
         out["valuationSentence"] = "SEC cross-check unavailable this run (the SEC data packet could not be read)."
+        out["unverified"].append("the figures against SEC filings (the SEC data packet could not be read)")
         print(json.dumps(out, indent=1))
         return
     out["packet"] = True
@@ -244,12 +245,29 @@ def cmd_sec(job_path, packet_path, engine_path=None):
                             continue
                     except Exception:
                         continue
-                groups.setdefault(item, {"issue": iss, "dates": [], "urls": []})
-                groups[item]["dates"].append(w.get("date"))
-                groups[item]["urls"].append(w.get("url"))
-    for item, g in groups.items():
+                # item 5.02 also covers pay plans; the packet reads each recent one and labels it (older packets: unlabeled)
+                kind = (w.get("kind") or "unclear") if item == "5.02" else ""
+                if kind == "pay plan only":
+                    continue
+                if kind == "unread":
+                    out["unverified"].append(f"what the 8-K filed {w.get('date')} says (the SEC filing could not be read)")
+                    kind = "unclear"
+                key = (item, "finance" if kind == "finance officer departure" else "")
+                groups.setdefault(key, {"issue": iss, "dates": [], "urls": [], "sentences": []})
+                groups[key]["dates"].append(w.get("date"))
+                groups[key]["urls"].append(w.get("url"))
+                groups[key]["sentences"].append(w.get("sentence") or "")
+    for (item, sub), g in groups.items():
         detail = "8-K filed " + ", ".join(g["dates"])
-        if item == "5.02":
+        if item == "5.02" and sub == "finance":
+            said = "; ".join(f"{d}: \"{s}\"" for d, s in zip(g["dates"], g["sentences"]) if s)
+            out["add"]["redFlags"].append({"issue": "Finance officer leaving (CFO, chief accounting officer or controller)",
+                                           "severity": "medium", "detail": f"{detail}. {said}".strip()})
+            out["judge"].append("FINANCE OFFICER LEAVING (8-K 5.02) filed " + ", ".join(f"{d} {u}" for d, u in zip(g["dates"], g["urls"]))
+                                + ": the summary must name who left and when (a departing CFO, chief accounting officer or "
+                                "controller is a Financial Shenanigans warning sign). If it was sudden, unexplained or over a "
+                                "disagreement (from the 8-K or news), raise this flag to high.")
+        elif item == "5.02":
             out["add"]["redFlags"].append({"issue": "Executive or director change", "severity": "low", "detail": detail})
             out["judge"].append("Executive or director change (8-K 5.02) filed " + ", ".join(f"{d} {u}" for d, u in zip(g["dates"], g["urls"]))
                                 + ": if the CFO left suddenly (from the 8-K or news), raise this flag to high.")
@@ -348,6 +366,8 @@ def cmd_sec(job_path, packet_path, engine_path=None):
                 worst_core = max(worst_core, d)
                 # serious: a figure the value is built on. No paper-bot trigger until Claude settles which source is right.
                 tag = "OperatingIncomeLoss" if "operating income" in label else "Revenues"
+                if "operating income" in label and (an or {}).get("operating_income_basis"):
+                    tag = "GrossProfit"  # the company files no operating-income line; the SEC figure was built from these
                 link = (f"https://data.sec.gov/api/xbrl/companyconcept/CIK{int(pk['cik']):010d}/us-gaap/{tag}.json"
                         if pk.get("cik") else None)
                 out["serious"].append({"figure": label, "webull": page, "sec": sec, "pctApart": round(d, 1), "secLink": link})
@@ -373,18 +393,48 @@ def cmd_sec(job_path, packet_path, engine_path=None):
     if worst_core > 10:
         out["add"]["valueNotes"].append(f"Revenue or operating income differs from SEC filings by about {worst_core:.0f}%, so the estimated value may be off by about that much.")
     out["allWithin2"] = bool(out["compared"]) and all(c["pctApart"] <= 2 for c in out["compared"])
+
+    # the risk-free rate: the report's must match the packet's daily 10-year Treasury rate unless the 8% floor on the
+    # cost of capital makes the difference moot
+    V = A.get("value") or {}
+    t10 = ((pk.get("macro") or {}).get("10y_treasury") or {})
+    rf, prem = num(V.get("rf")), num(V.get("premium")) or 0
+    if rf is not None and num(t10.get("value")) is not None:
+        pk_rf = num(t10["value"]) / 100
+        if abs(pk_rf - rf) > 0.0025 and abs(max(0.08, pk_rf + prem) - max(0.08, rf + prem)) > 1e-9:
+            out["unverified"].append(f"the 10-year Treasury rate (report {rf * 100:.2f}% dated {V.get('rfDate')}, "
+                                     f"SEC packet {pk_rf * 100:.2f}% dated {t10.get('date')})")
+    elif rf is not None and max(0.08, rf + prem) > 0.08:
+        out["unverified"].append(f"the 10-year Treasury rate (report {rf * 100:.2f}%; the SEC packet had no rate to check it against)")
+    def short(fig):  # "Fiscal 2026-05-31 operating income" -> "annual operating income"
+        return ("annual " + fig.split(" ", 2)[2]) if fig.startswith("Fiscal ") else fig.lower()
+    # the figures the value and the trigger rest on: any that could not be compared is a "can not verify" hold
+    done = {short(c["figure"]) for c in out["compared"]}
+    for need in ("market cap", "trailing 12-month revenue", "annual revenue", "annual operating income"):
+        if need not in done:
+            why = ("financials are not in US dollars" if fin and cur != "USD" else
+                   "the page saved no revenue figures" if not fin else
+                   "no SEC share count was found" if need == "market cap" else
+                   "no comparable SEC figure was found")
+            out["unverified"].append(f"{need} against SEC filings ({why})")
     if out["compared"]:
         if out["disagreements"]:
-            bad = [c["figure"].lower() for c in out["compared"] if c["pctApart"] > 5]
-            rest = " The other figures agree within 5%." if len(bad) < len(out["compared"]) else ""
+            bad = sorted({short(c["figure"]) for c in out["compared"] if c["pctApart"] > 5})
+            rest = " The other figures agree within 5%." if len(bad) < len(done) else ""
             out["valuationSentence"] = f"Checked against SEC filings: {', '.join(bad)} differed by more than 5% (see red flags).{rest}"
         else:
             within = "2%" if out["allWithin2"] else "5%"
-            names = sorted({c["figure"].split(" 20")[0].replace("Fiscal", "annual").strip().lower() for c in out["compared"]})
+            names = sorted(done)
             verb = "agrees" if len(names) == 1 else "agree"
             out["valuationSentence"] = f"Checked against SEC filings: {', '.join(names)} {verb} within {within}."
     else:
         out["valuationSentence"] = "SEC cross-check unavailable this run (the packet had no comparable figures)."
+    if out["unverified"]:
+        out["valuationSentence"] += " Not verified: " + "; ".join(out["unverified"]) + "."
+    if (an or {}).get("operating_income_basis"):
+        out["valuationSentence"] += f" SEC operating income was {an['operating_income_basis']}."
+    out["judge"].append("SEC CHECK WORDING: describe the SEC cross-check in the summary only with this sentence, word for word, "
+                        f"and claim nothing beyond it: \"{out['valuationSentence']}\"")
     out["judge"].append("EARNINGS SURPRISE: if two sources give a different actual EPS or estimate that would change the "
                         "surprise tag (e.g. Webull shows a miss while the company or a news report shows a beat on adjusted EPS), set "
                         "patch \"surprise\" to {\"tag\": \"Sources disagree\", \"note\": both sets of numbers with their sources}. "
@@ -527,17 +577,31 @@ def cmd_finalize(job_path, patch_path, sec_path, engine_path=None):
     value_notes = S["add"]["valueNotes"] if open_items or not ok_items else []
     if value_notes:
         A.setdefault("value", {}).setdefault("notes", []).extend(value_notes)
-    if open_items:
-        A["dataHold"] = {"items": open_items,
-                         "note": "No paper-bot trigger: " + "; ".join(
-                             f"{i['figure']} Webull {big(i['webull'])} vs SEC {big(i['sec'])} ({i['pctApart']}% apart, {i['right']}: {i['how']})"
-                             for i in open_items) + ". The value may rest on a wrong number until this is checked."}
+    # anything that could not be verified stops the trigger (user rule, 2026-11-06): figures with no SEC match, and
+    # gaps Claude could not settle
+    unverified = list(S.get("unverified") or []) + [f"{i['figure']} (Webull {big(i['webull'])} vs SEC {big(i['sec'])}, "
+                                                      f"{i['pctApart']}% apart, not settled)" for i in open_items if i["right"] == "unsure"]
+    if open_items or unverified:
+        parts = [f"{i['figure']} Webull {big(i['webull'])} vs SEC {big(i['sec'])} ({i['pctApart']}% apart, {i['right']}: {i['how']})"
+                 for i in open_items if i["right"] != "unsure"]
+        if unverified:
+            parts.append("can not verify " + "; ".join(unverified))
+        A["dataHold"] = {"items": open_items, "unverified": unverified,
+                         "note": "No paper-bot trigger: " + "; ".join(parts) + ". The value may rest on a wrong number until this is checked."}
         A.setdefault("value", {}).setdefault("notes", []).append(A["dataHold"]["note"])
 
     # Claude's written fields
     for k in ("thesis", "summary", "news", "recentEvents", "catalysts", "whatChangesTheCall", "verdictWhy", "bullBear"):
         if k in P:
             A[k] = P[k]
+    if isinstance(A.get("news"), list):  # newest first
+        A["news"] = sorted(A["news"], key=lambda n: str((n or {}).get("date") or ""), reverse=True)
+    # a finance officer leaving must be in the summary even if the written summary left it out
+    fin_exit = next((f for f in A["redFlags"] if str(f.get("issue", "")).startswith("Finance officer leaving")), None)
+    need = (("accounting officer", "controller") if fin_exit and any(w in str(fin_exit.get("detail", "")).lower() for w in ("accounting officer", "controller"))
+            else ("chief financial officer", "cfo"))
+    if fin_exit and A.get("summary") and not any(w in A["summary"].lower() for w in need):
+        A["summary"] = A["summary"].rstrip() + f" SEC filings also show a finance officer leaving: {fin_exit.get('detail')}."
 
     # verdict rules
     new_high = any(f.get("severity") == "high" and f.get("issue") not in orig_high for f in A["redFlags"])
@@ -809,8 +873,14 @@ def cmd_trigger(final_path, ticker, check=None):
                              if x.get("ticker") == t and x.get("source") == "forensic" and x.get("status") in ("active", "awaiting_confirm")]
                     tail = (f" An older trigger ({older[0].get('id')}) is still active and may rest on the same numbers."
                             if older else " No older trigger is active for it.")
-                    if not alert(f"{t}: no trigger (data check)", f"{t} was held back: {dhold['note'].split('No paper-bot trigger: ', 1)[-1]}"
-                                 f"{tail} Ask Claude to check which number is right."):
+                    unv = dhold.get("unverified") or []
+                    if unv:
+                        first = unv[0].split(" (")[0]
+                        title = f"{t} can not verify {first}" + (f" (+{len(unv) - 1} more)" if len(unv) > 1 else "")
+                    else:
+                        title = f"{t}: no trigger (data check)"
+                    if not alert(title, f"{t} was held back, no trigger sent: {dhold['note'].split('No paper-bot trigger: ', 1)[-1]}"
+                                 f"{tail} Ask Claude to check it."):
                         result["triggerNote"] += " The phone alert about this failed to send."
             else:
                 X, stop, target = round(X, 2), round(stop, 2), round(target, 2)

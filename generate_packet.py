@@ -262,6 +262,17 @@ try:
         total_shares = sum(e["val"] for e in latest if e["end"] == latest_end)  # sums share classes
         break
     if total_shares is None:
+        # companies with two share classes (e.g. Nike) now file the cover-page count per class, which SEC's
+        # company-facts feed leaves out; the diluted weighted-average count from the newest 10-Q/10-K covers all classes
+        wavg = [e for e in gaap.get("WeightedAverageNumberOfDilutedSharesOutstanding", {}).get("units", {}).get("shares", [])
+                if "start" in e and str(e.get("form", "")).startswith(("10-Q", "10-K"))]
+        if wavg:
+            newest = max(wavg, key=lambda e: (e["end"], -days(e), e["filed"]))  # newest period, shortest span
+            if (datetime.utcnow() - datetime.fromisoformat(newest["end"])).days <= 400:
+                total_shares = newest["val"]
+                packet["sec_shares_basis"] = (f"diluted weighted-average shares for the period ending {newest['end']} "
+                                              f"(no undivided shares-outstanding figure filed since {stale_end or 'never'})")
+    if total_shares is None:
         packet["errors"].append(f"sec facts: newest SEC share count is from {stale_end}, too old to check market cap"
                                 if stale_end else "sec facts: no shares-outstanding figure filed")
     elif last_close:
@@ -292,6 +303,8 @@ def compare_field(field, yf_val, sec_val, threshold):
         packet["errors"].append(f"cross_check cannot compute {field}")
         return
     entry = {"field": field, "yfinance": yf_val, "sec": sec_val, "pct_diff": round2(diff)}
+    if field == "market_cap" and packet.get("sec_shares_basis"):
+        entry["basis"] = "SEC share count: " + packet["sec_shares_basis"]
     if diff > threshold:
         packet["cross_check"]["mismatches"].append(entry)
     else:
@@ -323,6 +336,52 @@ def sec_get(url):
     r = requests.get(url, headers={"User-Agent": f"qanicuq {email}"}, timeout=30)
     r.raise_for_status()
     return r.json()
+
+FINANCE_ROLES = ("chief financial officer", "chief accounting officer", "principal accounting officer",
+                 "principal financial officer", "controller")
+LEAVING = ("resign", "retire", "depart", "step down", "stepping down", "will leave", "leaving", "terminat", "separat")
+CHANGE = LEAVING + ("appoint", "elect", "named", "promot", "successor")
+
+def classify_502(html_text):
+    """Item 5.02 covers officer/director changes AND pay plans. Read the item's own text (not its standard heading,
+    which always says "departure ... appointment ... compensatory") and return (kind, first telling sentence)."""
+    import re, html as _h
+    t = re.sub(r"\s+", " ", _h.unescape(re.sub(r"<[^>]+>", " ", html_text)))
+    low = t.lower()
+    starts = [m.end() for m in re.finditer(r"item\s*5\.02", low)]
+    if not starts:
+        return "unclear", ""
+    body = low[starts[-1]:]
+    nxt = re.search(r"item\s*\d\.\d\d|signature", body)  # the item ends at the next item or the signatures
+    if nxt:
+        body = body[:nxt.start()]
+    body = re.sub(r"^[\s.:\-]*departure of directors.*?compensatory arrangements of certain officers\.?", "", body).strip()
+    # a finance role within ~300 characters before (or 100 after) a leaving word; not sentence splits, which
+    # break on "Inc." and similar
+    for m in re.finditer(r"\b(?:" + "|".join(re.escape(w) for w in LEAVING) + ")", body):
+        if any(r in body[max(0, m.start() - 300):m.end() + 100] for r in FINANCE_ROLES):
+            return "finance officer departure", body[max(0, m.start() - 200):m.end() + 80].strip()
+    m = re.search(r"\b(?:" + "|".join(re.escape(w) for w in CHANGE) + ")", body)
+    if m:
+        return "officer or director change", body[max(0, m.start() - 150):m.end() + 80].strip()
+    return "pay plan only", body[:220]
+
+def classify_recent_502(gov, today=None):
+    """Read each item-5.02 8-K from the last 183 days (at most 8) and label what it is."""
+    import requests
+    email = os.environ.get("SEC_IDENTITY_EMAIL", "user@example.com")
+    cutoff = str((today or datetime.utcnow().date()) - timedelta(days=183))
+    n = 0
+    for w in gov.get("watch") or []:
+        if "item 5.02" not in w.get("issue", "") or w.get("date", "") < cutoff or n >= 8:
+            continue
+        n += 1
+        try:
+            r = requests.get(w["url"], headers={"User-Agent": f"qanicuq {email}"}, timeout=30)
+            r.raise_for_status()
+            w["kind"], w["sentence"] = classify_502(r.text)
+        except Exception as e:
+            w["kind"], w["sentence"] = "unread", f"could not read the filing ({type(e).__name__})"
 
 def governance_from_submissions(sub, today=None):
     """Return (governance dict, display filings list) from a data.sec.gov submissions JSON."""
@@ -405,6 +464,7 @@ try:
     _cik = int(_Co(TICKER).cik)
     packet["cik"] = _cik  # lets the worker link straight to the SEC figures when sources disagree
     gov, shown = governance_from_submissions(sec_get(f"https://data.sec.gov/submissions/CIK{_cik:010d}.json"))
+    classify_recent_502(gov)
     packet["governance"] = gov
     if shown:
         packet["filings"] = shown  # 10-K/10-Q/8-K first, instead of the newest five of any form (often Form 4s)
@@ -422,6 +482,18 @@ try:
             if cfo is not None:
                 fcf_acq[end] = round2(cfo - capex - acq)
         packet["annual"]["fcf_after_acquisitions"] = fcf_acq
+        # some companies file no operating-income line (e.g. Nike); build it from the filed lines so it can still be
+        # checked: gross profit minus selling/admin and R&D. A gap the build can't explain goes to the settle step.
+        an = packet["annual"]
+        oi, rd = an["operating_income"], an.get("research_development") or {}
+        built = [y for y, gp in an["gross_profit"].items() if y not in oi and an["sga"].get(y) is not None]
+        for y in built:
+            oi[y] = round2(an["gross_profit"][y] - an["sga"][y] - (rd.get(y) or 0))
+        an["operating_income"] = dict(sorted(oi.items(), reverse=True))
+        if built:
+            an["operating_income_basis"] = ("built from SEC gross profit minus selling and admin" + (" minus R&D" if rd else "")
+                                            + " for fiscal years ending " + ", ".join(sorted(built, reverse=True))
+                                            + " (no operating-income line filed)")
         packet["annual"]["note"] = "Fiscal years from 10-K XBRL, USD, newest first. capex and acquisitions are cash paid (positive)."
 except Exception as e:
     packet["errors"].append(f"sec annual: {type(e).__name__}: {str(e)[:120]}")
