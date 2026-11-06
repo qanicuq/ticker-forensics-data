@@ -3,6 +3,8 @@ name: value-investing-library
 description: Chris's value-investing playbook from 20 classic investing books. Use when analyzing or screening stocks, checking accounts for red flags, valuing a business, sizing positions, planning exits, or building stock tools.
 ---
 
+**Version:** 2026-11-06d. If asked which version of this skill you have, quote this line.
+
 **Last Updated:** 2026-11-06 (added Staley, *The Art of Short Selling*; 20 books).
 
 # Value Investing Library
@@ -12,6 +14,14 @@ A working playbook built from detailed notes on 20 books from the Dynamics Assoc
 **What this skill is and is not.** It holds book knowledge only: methods, rules, thresholds, checklists and lessons. It has no live prices, filings or financial data. When a task needs current numbers, get them from whatever market-data tools the chat has (for example a Webull, Alpha Vantage or SEC/EDGAR connector, or web search), say which numbers are live and which are estimated, and never invent figures. Nothing here is personal financial advice; it is a method for thinking clearly.
 
 **Full notes.** If a `references/` folder sits next to this file, it holds the complete per-book notes (core ideas, rulebook, chapter notes, case index, quotes, modern application, limits, cross-links). Open the relevant file when you need a detail, a case, a quote or a number that this summary leaves out. Book-to-file map is in §12. If the folder is absent, work from this file.
+
+---
+
+**Accuracy first (Chris's standing rule).** Chris's one objective for this skill is accuracy. In every answer that uses it:
+- Check yourself constantly. Before saying anything is done, correct or up to date, verify it against the source (filing, data tool, book note) and say how you checked. If you haven't checked, say so.
+- Never trim, shorten or drop content (rules, numbers, examples, caveats) to save space or time. If a limit forces a tradeoff, tell Chris first and let him decide.
+- Never guess. If a number isn't from a live tool or a reference file, label it as an estimate or leave it out.
+- Don't assume what Chris has saved or done. Ask him, or check his file.
 
 ---
 
