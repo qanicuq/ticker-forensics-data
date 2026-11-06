@@ -350,8 +350,18 @@ def cmd_sec(job_path, packet_path, engine_path=None):
                 link = (f"https://data.sec.gov/api/xbrl/companyconcept/CIK{int(pk['cik']):010d}/us-gaap/{tag}.json"
                         if pk.get("cik") else None)
                 out["serious"].append({"figure": label, "webull": page, "sec": sec, "pctApart": round(d, 1), "secLink": link})
-                out["judge"].append(f"SETTLE \"{label}\": Webull {big(page)} vs SEC {big(sec)} ({d:.1f}% apart). Find which is right "
-                                    "and put it in the patch's \"settled\" list (see the worker instructions).")
+                out["judge"].append(
+                    f"SETTLE \"{label}\": Webull {big(page)} vs SEC {big(sec)} ({d:.1f}% apart). The value is built on this figure, so "
+                    "no paper-bot trigger is sent until you settle it. Use at most 4 lookups for the whole job: WebFetch "
+                    f"{link or 'the SEC company-facts page for this line'} (ask for every 10-K entry for that fiscal year with val and "
+                    "filed date), mcp__Webull__get_income_statement (category US_STOCK, type ANNUAL, count 5: that year's op_income, "
+                    "unusual_expense_income, inter_expse_inc_net_oper, ebt, total_revenue), and if needed one related SEC line or the "
+                    "10-K. Then add to patch.json a key \"settled\": a list with one entry per SETTLE item: {\"figure\": the quoted "
+                    "figure name copied exactly, \"right\": \"Webull\" (a filed figure supports Webull's number) | \"SEC\" (Webull's "
+                    "number is wrong) | \"both\" (the same thing measured two valid ways) | \"unsure\", \"how\": one plain sentence "
+                    "with the numbers you saw and their source}. Say Webull or both only when a filed figure you actually saw "
+                    "explains the whole gap (within 2%); otherwise SEC or unsure. Never guess. An unsettled item holds the trigger "
+                    "and the script alerts the user. Mention how it was settled in the summary.")
     if worst_core > 10:
         out["add"]["valueNotes"].append(f"Revenue or operating income differs from SEC filings by about {worst_core:.0f}%, so the estimated value may be off by about that much.")
     out["allWithin2"] = bool(out["compared"]) and all(c["pctApart"] <= 2 for c in out["compared"])
@@ -367,6 +377,10 @@ def cmd_sec(job_path, packet_path, engine_path=None):
             out["valuationSentence"] = f"Checked against SEC filings: {', '.join(names)} {verb} within {within}."
     else:
         out["valuationSentence"] = "SEC cross-check unavailable this run (the packet had no comparable figures)."
+    out["judge"].append("EARNINGS SURPRISE: if two sources give a different actual EPS or estimate that would change the "
+                        "surprise tag (e.g. Webull shows a miss while the company or a news report shows a beat on adjusted EPS), set "
+                        "patch \"surprise\" to {\"tag\": \"Sources disagree\", \"note\": both sets of numbers with their sources}. "
+                        "A disputed surprise counts as unknown, never as good or bad.")
     # special situations (Greenblatt): newest filing decides the label
     for s in gov.get("special_situations") or []:
         form = s.get("form") or ""
@@ -654,6 +668,14 @@ def alert(title, msg, priority="high"):
     """Phone alert through ntfy (push only). The topic comes from the NTFY_TOPIC environment variable or the file
     ntfy_topic.txt that the worker writes in its own working folder; it is never printed. Tries twice."""
     topic = os.environ.get("NTFY_TOPIC") or (open("ntfy_topic.txt").read().strip() if os.path.exists("ntfy_topic.txt") else "")
+    if not topic:  # the worker's private copy of the scripts (artifact database, never GitHub) also carries the topic
+        import glob
+        for f in glob.glob("sys/**/engine.json", recursive=True):
+            try:
+                d = load(f)
+                topic = (d.get("data") or d).get("ntfy") or ""
+            except Exception:
+                pass
     if not topic:
         return False
     for _ in range(2):
@@ -664,30 +686,61 @@ def alert(title, msg, priority="high"):
     return False
 
 
-def _bot_records(test, minutes=5):
-    """Re-read the bot's triggers.yml and ledger.yml every 20 seconds until test(triggers, positions) is true,
-    for up to `minutes`. The bot's add-trigger run usually commits within about a minute."""
-    end = time.time() + minutes * 60
+def _recorded(spec, triggers, positions):
+    """True when the bot's files show the message in spec was processed.
+    spec = {"kind": "buy", "id", "entry", "target"} or {"kind": "thesis", "ticker"}."""
+    if spec["kind"] == "buy":
+        return any(x.get("id") == spec["id"] and num(((x.get("exit_plan") or {}).get("target") or {}).get("price")) == spec["target"]
+                   and any(num(c.get("value")) == spec["entry"] for c in x.get("conditions") or []) for x in triggers)
+    t = spec["ticker"]
+    return (not any(x.get("ticker") == t and x.get("source") == "forensic" and x.get("action") == "BUY"
+                    and x.get("status") in ("active", "awaiting_confirm") for x in triggers)
+            and all(p.get("thesis_broken") for p in positions if p.get("ticker") == t and p.get("source") == "forensic"))
+
+
+def _bot_records(spec, seconds):
+    """Re-read the bot's triggers.yml and ledger.yml every 15 seconds until the message shows up, for up to `seconds`.
+    The bot's add-trigger run usually commits within about a minute."""
+    end = time.time() + seconds
     while True:
         try:
-            if test(_bot_file("triggers.yml").get("triggers") or [], _bot_file("ledger.yml").get("positions") or []):
+            if _recorded(spec, _bot_file("triggers.yml").get("triggers") or [], _bot_file("ledger.yml").get("positions") or []):
                 return True
         except Exception:
             pass
         if time.time() >= end:
             return False
-        time.sleep(20)
+        time.sleep(15)
 
 
-def _send_checked(yaml_text, test):
-    """Send, confirm the bot recorded it, resend once if not. Returns (ok, note)."""
-    for attempt in (1, 2):
-        ok, err = _send(yaml_text)
-        if not ok:
-            return False, f"Trigger failed to send after a retry: {err[:150]}"
-        if os.environ.get("DRY_RUN") or _bot_records(test):
-            return True, ""
-    return False, "Sent twice, but the paper bot never recorded it"
+def _send_checked(yaml_text, spec, alert_title, alert_body):
+    """Send, then confirm the bot recorded it. The worker's commands may be cut off after about 2 minutes, so the
+    foreground wait is 85 seconds; if the bot is slower, a background check keeps watching, resends once and sends
+    the phone alert if the message never arrives. Returns (sent, note)."""
+    ok, err = _send(yaml_text)
+    if not ok:
+        alert(alert_title, f"{alert_body} It failed to send: {err[:150]}")
+        return False, f"Trigger failed to send after a retry: {err[:150]}"
+    if os.environ.get("DRY_RUN") or _bot_records(spec, 85):
+        return True, ""
+    path = os.path.abspath(f"verify_{spec.get('id') or spec.get('ticker')}_{now_ms()}.json")
+    with open(path, "w") as f:
+        json.dump({"yaml": yaml_text, "spec": spec, "title": alert_title, "body": alert_body}, f)
+    subprocess.Popen([sys.executable, os.path.abspath(__file__), "verify-bg", path], cwd=os.getcwd(),
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    return True, ("sent, but the bot hadn't recorded it after 85 seconds; a background check will resend it once and "
+                  "send a phone alert if it never arrives")
+
+
+def cmd_verify_bg(path):
+    """Background part of _send_checked: wait up to 4 more minutes, resend once, wait 5 minutes, then alert."""
+    job = load(path)
+    if _bot_records(job["spec"], 240):
+        return
+    ok, err = _send(job["yaml"])
+    if ok and _bot_records(job["spec"], 300):
+        return
+    alert(job["title"], job["body"] + (" Sent twice, but the paper bot never recorded it." if ok else f" Resend failed: {err[:150]}"))
 
 
 def cmd_trigger(final_path, ticker, check=None):
@@ -706,14 +759,11 @@ def cmd_trigger(final_path, ticker, check=None):
             if live or held:
                 reason = (A["walkAway"][0]["issue"] + ": verdict AVOID") if A.get("walkAway") else f"Verdict AVOID: {A.get('verdictWhy') or 'thesis broken'}"
                 y = (f"id: {t}-thesis-{today}\nsource: forensic\nticker: {t}\naction: THESIS_BROKEN\nreason: {_yaml_str(reason)}\n")
-                done = lambda tr, pos: (not any(x.get("ticker") == t and x.get("source") == "forensic" and x.get("action") == "BUY"
-                                                and x.get("status") in ("active", "awaiting_confirm") for x in tr)
-                                        and all(p.get("thesis_broken") for p in pos if p.get("ticker") == t and p.get("source") == "forensic"))
-                ok, err = _send_checked(y, done)
-                result = {"trigger": {"id": f"{t}-thesis-{today}", "entry": "Thesis broken: open trigger or position cancelled"}} if ok else {"triggerNote": f"Thesis-broken message: {err}."}
-                if not ok:
-                    alert(f"{t}: sell message not recorded", f"The AVOID report for {t} could not cancel its paper trigger or flag its "
-                          f"position for sale ({err}). Check the trigger-alerts bot.")
+                ok, note = _send_checked(y, {"kind": "thesis", "ticker": t}, f"{t}: sell message not recorded",
+                                         f"The AVOID report for {t} could not cancel its paper trigger or flag its position for sale. "
+                                         "Check the trigger-alerts bot.")
+                result = ({"trigger": {"id": f"{t}-thesis-{today}", "entry": "Thesis broken: open trigger or position cancelled"
+                                       + (f" ({note})" if note else "")}} if ok else {"triggerNote": f"Thesis-broken message: {note}."})
             else:
                 result = {"triggerNote": "Verdict AVOID: no buy trigger sent."}
         else:
@@ -779,20 +829,17 @@ def cmd_trigger(final_path, ticker, check=None):
                      f"recommendation: {_yaml_str(rec)}\nreport_date: {today}\nexpires: {expires}\n")
                 if final.get("dataThrough"):
                     y += f"data_through: {final['dataThrough']}\n"
-                tid = f"{t}-forensic-{today}"
-                same = lambda tr, pos: any(x.get("id") == tid and num(((x.get("exit_plan") or {}).get("target") or {}).get("price")) == target
-                                           and any(num(c.get("value")) == X for c in x.get("conditions") or []) for x in tr)
-                ok, err = _send_checked(y, same)
-                if not ok:
-                    alert(f"{t}: trigger not recorded", f"The new {t} trigger (buy at or below {money(X)}, sell {money(target)}, "
-                          f"stop {money(stop)}) did not reach the paper bot: {err}. Any older {t} trigger is still in place.")
+                ok, err = _send_checked(y, {"kind": "buy", "id": f"{t}-forensic-{today}", "entry": X, "target": target},
+                                        f"{t}: trigger not recorded",
+                                        f"The new {t} trigger (buy at or below {money(X)}, sell {money(target)}, stop {money(stop)}) "
+                                        f"did not reach the paper bot. Any older {t} trigger is still in place.")
                 if ok:
                     tstop = (f"review at {int(review)} months, sell at {int(months or 6)}" if review_txt
                              else f"{int(months or 6)}-month time stop")
                     entry = f"buy at or below {money(X)} ({basis}); sell at {money(target)}; stop {money(stop)}; {tstop}{wait}"
                     if check:
                         entry += f"; check {check} first"
-                    result = {"trigger": {"id": f"{t}-forensic-{today}", "entry": entry}}
+                    result = {"trigger": {"id": f"{t}-forensic-{today}", "entry": entry + (f" ({err})" if err else "")}}
                 else:
                     result = {"triggerNote": f"{err}."}
     except Exception as e:
@@ -822,6 +869,8 @@ def main(a):
         cmd_finalize(pos[0], pos[1], pos[2], opt("--engine"))
     elif cmd == "trigger":
         cmd_trigger(pos[0], pos[1], opt("--check"))
+    elif cmd == "verify-bg":
+        cmd_verify_bg(pos[0])
     elif cmd == "alert":
         print("SENT" if alert(pos[0], pos[1] if len(pos) > 1 else "") else "NOT_SENT")
     else:
