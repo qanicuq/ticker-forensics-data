@@ -367,6 +367,44 @@ def _checklist(A, prefix):
     return None
 
 
+SHORT_ITEM = "Short interest"
+SURPRISE_ITEM = "Earnings surprise"
+
+
+def _full_only_items(A, P):
+    cl = A.setdefault("checklist", [])
+    si = P.get("shortInterest") or {}
+    pct = num(si.get("pctFloat"))
+    if pct is not None:
+        hi = pct > 10
+        note = (f"{pct:g}% of the shares that trade are sold short" + (f" ({si['asOf']})" if si.get("asOf") else "") + ". "
+                + ("Over 10%: write out the bear case and answer it before buying (Staley)." if hi
+                   else "Under 10%: no crowd betting against it."))
+        if si.get("note"):
+            note += " " + str(si["note"])
+        item = {"item": SHORT_ITEM, "status": "warn" if hi else "ok", "note": note}
+    else:
+        item = {"item": SHORT_ITEM, "status": "you",
+                "note": "Not found this run. Check the short interest (% of float) on your broker's page; over 10% means "
+                        "write out the bear case and answer it before buying (Staley)."}
+    sp = P.get("surprise") or {}
+    tag = sp.get("tag")
+    if tag in ("Positive", "Negative", "In line"):
+        sitem = {"item": SURPRISE_ITEM, "status": "warn" if tag == "Negative" else "ok",
+                 "note": f"{tag}: {sp.get('note') or ''}".strip().rstrip(":")
+                         + " (Dreman: good surprises tend to lift out-of-favor stocks for several quarters; bad surprises hurt favorites most.)"}
+    else:
+        sitem = {"item": SURPRISE_ITEM, "status": "you",
+                 "note": "Not found this run. Compare the last reported EPS with the estimate (Dreman: good surprises tend to "
+                         "lift out-of-favor stocks for several quarters; bad surprises hurt favorites most)."}
+    for new in (item, sitem):
+        old = _checklist(A, new["item"])
+        if old is not None:
+            old.update(new)
+        else:
+            cl.append(new)
+
+
 def cmd_finalize(job_path, patch_path, sec_path, engine_path=None):
     job = load(job_path)
     E = json.loads(json.dumps(engine_of(job, engine_path)))
@@ -460,6 +498,9 @@ def cmd_finalize(job_path, patch_path, sec_path, engine_path=None):
                 item["note"] = u["note"]
             if "status" in u:
                 item["status"] = u["status"]
+    # full-analysis-only checklist lines (data the quick check can't load): short interest (Staley) and the
+    # latest earnings surprise (Dreman). The helper fills them when it finds the figures; otherwise they ask the user.
+    _full_only_items(A, P)
     wa = "No walk-away filings (auditor change, restatement, late filing)"
     item = _checklist(A, "No walk-away filings")
     if item is None:
@@ -549,8 +590,10 @@ def cmd_trigger(final_path, ticker, check=None):
             if ep.get("entryType"):
                 X, stop, target = num(ep.get("entry")) or num(A.get("entryPrice")), num(ep.get("stop")), num(ep.get("target"))
                 months = num(ep.get("timeStopMonths"))
+                review = num(ep.get("reviewMonths"))
             else:  # older report
                 X, stop, target, months = num(A.get("buyBelow")), num(ep.get("stop")), num(A.get("intrinsicValue")), num(ep.get("timeStopMonths"))
+                review = None
             why = None
             if X is None or stop is None or target is None:
                 why = "the report has no complete entry, stop and target"
@@ -578,18 +621,21 @@ def cmd_trigger(final_path, ticker, check=None):
                 checks = ", ".join(([check] if check else []) + ["earnings, filings and news"])
                 rec += f"; check {checks} before confirming."
                 hold = int((months or 6) * 30)
+                review_txt = f", review_days: {int(review * 30)}" if review and review * 30 < hold else ""
                 cond = f"  - {{type: price, op: \"<=\", value: {X}}}\n"
                 if value:
                     cond += "  - {type: price_vs, ref: support20, op: \">=\", pct: 2}\n"
                 expires = (date.fromisoformat(today) + timedelta(days=90)).isoformat()
                 y = (f"id: {t}-forensic-{today}\nsource: forensic\nticker: {t}\naction: BUY\nconditions:\n{cond}"
-                     f"exit_plan: {{stop: {{price: {stop}}}, target: {{price: {target}}}, max_hold_days: {hold}}}\n"
+                     f"exit_plan: {{stop: {{price: {stop}}}, target: {{price: {target}}}, max_hold_days: {hold}{review_txt}}}\n"
                      f"recommendation: {_yaml_str(rec)}\nreport_date: {today}\nexpires: {expires}\n")
                 if final.get("dataThrough"):
                     y += f"data_through: {final['dataThrough']}\n"
                 ok, err = _send(y)
                 if ok:
-                    entry = f"buy at or below {money(X)} ({basis}); sell at {money(target)}; stop {money(stop)}; {int(months or 6)}-month time stop{wait}"
+                    tstop = (f"review at {int(review)} months, sell at {int(months or 6)}" if review_txt
+                             else f"{int(months or 6)}-month time stop")
+                    entry = f"buy at or below {money(X)} ({basis}); sell at {money(target)}; stop {money(stop)}; {tstop}{wait}"
                     if check:
                         entry += f"; check {check} first"
                     result = {"trigger": {"id": f"{t}-forensic-{today}", "entry": entry}}
