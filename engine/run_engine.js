@@ -8,6 +8,7 @@
      snapshot.json  bars.json  profile.json
      income_q.json  income_a.json  cashflow_q.json  cashflow_a.json  balance_q.json  balance_a.json
      rating.json  target.json  alert.json
+     peers_pe.json  peers_pb.json   (optional: get_stock_industry_comparison sorted by PE_TTM and PB_RATIO)
    A missing or unreadable file is listed in "missing". The 10-year Treasury yield comes from the
    SEC packet (macro.10y_treasury), and so does the exchange rate for companies reporting in another
    currency (fx). Insider and institutional data need Alpha Vantage, which only
@@ -43,7 +44,8 @@ const D = {
   rate: req("analyst rating", "rating.json"),
   tgt: req("analyst target price", "target.json"),
   alert: req("earnings alert", "alert.json"),
-  ins: null, inst: null, tsy, missing, fx
+  ins: null, inst: null, tsy, missing, fx,
+  peersPE: read("peers_pe.json"), peersPB: read("peers_pb.json")  /* optional: industry rank */
 };
 missing.push("insider trades (Alpha Vantage)", "institutional ownership (Alpha Vantage)");
 if (!tsy) missing.push("10-year Treasury yield");

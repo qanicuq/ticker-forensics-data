@@ -35,7 +35,7 @@ const CAT_NOTES={
   "Slow grower":"Owned mainly for dividends and steadiness. Pay no more than value with zero growth (Lynch, Greenwald)."
 };
 
-/* D = {sym,cat,s (snapshot),bars,prof,incQ,incA,cfQ,cfA,bsQ,bsA,rate,tgt,alert,ins,inst,tsy,missing:[]} (raw tool payloads) */
+/* D = {sym,cat,s (snapshot),bars,prof,incQ,incA,cfQ,cfA,bsQ,bsA,rate,tgt,alert,ins,inst,tsy,peersPE,peersPB,missing:[]} (raw tool payloads) */
 function engine(D){
   const s=D.s, sym=D.sym, missing=D.missing||[];
   /* ---- price history and technicals ---- */
@@ -263,6 +263,25 @@ function engine(D){
   /* paying for "endless" growth (Bernstein: the Nifty-Fifty). The full analysis compares with the S&P 500's own P/E. */
   V.peHigh=peNow>40;
   if(V.peHigh) V.notes.push(`P/E of ${fmt(peNow,1)} prices in a lot of growth. Bernstein's Nifty-Fifty lesson: in December 1972 Polaroid sold at 96× earnings and McDonald's at 80× against 19× for the S&P 500; over the next 21 years only 11 of the 50 beat the index.`);
+  /* rank within its industry (Dreman Rule 20: the cheapest 20% of each industry beat the market). Webull's peer list
+     is sorted highest first and stops at 20 names, so a rank is only given when the list is complete (under 20 names);
+     a cut-off list can't show where the cheap end is. Only positive ratios count; rank 1 = cheapest. */
+  const peerRank=(payload,own)=>{
+    const rows=findArr(payload,x=>x&&x.symbol!=null&&x.rank!=null);
+    if(!rows||!(own>0)) return null;
+    const name=asJson(payload)?.industry_name||null;
+    if(rows.length>=20) return {industry:name,cutOff:true};
+    const vals=rows.filter(r=>r.symbol!==sym).map(r=>N(r.value)).filter(v=>v>0);
+    vals.push(own); vals.sort((a,b)=>a-b);
+    return vals.length>=5?{industry:name,rank:vals.indexOf(own)+1,n:vals.length,value:own}:null; };
+  V.industry={pe:peerRank(D.peersPE,peNow),pb:peerRank(D.peersPB,N(s.pb_ratio))};
+  { const ip=V.industry.pe, ib=V.industry.pb, ind=(ip||ib)?.industry;
+    const say=(x,l)=>x&&!x.cutOff?`${l} ${fmt(x.value,1)} is ${x.rank===1?"the lowest":`number ${x.rank} from the lowest`} of ${x.n}${x.rank<=Math.ceil(x.n*0.2)?" (cheapest 20%)":x.rank>x.n-Math.ceil(x.n*0.2)?" (most expensive 20%)":""}`:null;
+    const parts=[say(ip,"P/E"),say(ib,"P/B")].filter(Boolean);
+    const cut=[ip?.cutOff?"P/E":null,ib?.cutOff?"P/B":null].filter(Boolean);
+    if(parts.length||cut.length) V.notes.push(`Within its industry${ind?` (${ind})`:""}: `+(parts.length?parts.join("; ")+". ":"")
+      +(cut.length?`Webull lists only the 20 highest ${cut.join(" and ")} figures for this industry, so where it sits among the cheapest can't be told. `:"")
+      +"Dreman: the cheapest 20% of each industry beat the market over 1970-96, separately from being cheap overall (Rule 20)."); }
   const agree=[V.epv,V.graham,V.tbvps].filter(x=>x!=null&&x>0);
   V.methodsAbovePrice=agree.filter(x=>x>price).length; V.methodsCount=agree.length;
 
