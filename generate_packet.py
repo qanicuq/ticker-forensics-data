@@ -429,6 +429,24 @@ try:
 except Exception as e:
     packet["errors"].append(f"fredapi: {type(e).__name__}: {str(e)[:120]}")
 
+# ---------- 4b. the S&P 500's own P/E and P/B (Dreman Rule 21: sell when no longer cheap vs the market) ----------
+# Source: Yahoo's holdings table for SPY. Its "Price/Earnings" and "Price/Book" rows are earnings and book YIELDS
+# (0.0416 = 4.16%), so the ratios are their inverse; tested 2026-11-06: P/E 24.0, P/B 5.08 vs multpl.com 25.1 and 5.27.
+# Yahoo's own SPY "priceToBook" field (1.71) is not the index's P/B and is not used.
+try:
+    import yfinance as yf
+    eh = yf.Ticker("SPY").funds_data.equity_holdings
+    col = "SPY" if "SPY" in eh.columns else eh.columns[0]
+    ep, bp = float(eh.loc["Price/Earnings", col]), float(eh.loc["Price/Book", col])
+    mpe, mpb = round2(1 / ep), round2(1 / bp)
+    spy_pe = round2((yf.Ticker("SPY").info or {}).get("trailingPE"))
+    if not (8 <= mpe <= 60 and 1 <= mpb <= 12):
+        raise ValueError(f"out of range: P/E {mpe}, P/B {mpb}")
+    packet["market"] = {"pe": mpe, "pb": mpb, "spy_trailing_pe": spy_pe, "index": "S&P 500 (SPY holdings)",
+                        "date": datetime.utcnow().strftime("%Y-%m-%d"), "source": "yfinance SPY equity_holdings (inverse of the yields)"}
+except Exception as e:
+    packet["errors"].append(f"market P/E: {type(e).__name__}: {str(e)[:120]}")
+
 # ---------- 5. CCXT only for crypto-linked ----------
 CRYPTO_TICKERS = {"BTC", "ETH", "COIN", "MSTR", "IBIT", "GBTC", "ETHE", "BITO"}
 if TICKER in CRYPTO_TICKERS or TICKER.endswith("-USD"):

@@ -217,6 +217,7 @@ def cmd_sec(job_path, packet_path, engine_path=None):
         print(json.dumps(out, indent=1))
         return
     out["packet"] = True
+    out["market"] = pk.get("market")  # the S&P 500's P/E and P/B for the "no longer cheap" sell line
 
     gov = pk.get("governance")
     if gov is None:
@@ -367,6 +368,81 @@ def _checklist(A, prefix):
     return None
 
 
+SHORT_ITEM = "Short interest"
+SURPRISE_ITEM = "Earnings surprise"
+
+
+def _full_only_items(A, P):
+    cl = A.setdefault("checklist", [])
+    si = P.get("shortInterest") or {}
+    pct = num(si.get("pctFloat"))
+    if pct is not None:
+        hi = pct > 10
+        note = (f"{pct:g}% of the shares that trade are sold short" + (f" ({si['asOf']})" if si.get("asOf") else "") + ". "
+                + ("Over 10%: write out the bear case and answer it before buying (Staley)." if hi
+                   else "Under 10%: no crowd betting against it."))
+        if si.get("note"):
+            note += " " + str(si["note"])
+        item = {"item": SHORT_ITEM, "status": "warn" if hi else "ok", "note": note}
+    else:
+        item = {"item": SHORT_ITEM, "status": "you",
+                "note": "Not found this run. Check the short interest (% of float) on your broker's page; over 10% means "
+                        "write out the bear case and answer it before buying (Staley)."}
+    sp = P.get("surprise") or {}
+    tag = sp.get("tag")
+    if tag in ("Positive", "Negative", "In line"):
+        sitem = {"item": SURPRISE_ITEM, "status": "warn" if tag == "Negative" else "ok",
+                 "note": f"{tag}: {sp.get('note') or ''}".strip().rstrip(":")
+                         + " (Dreman: good surprises tend to lift out-of-favor stocks for several quarters; bad surprises hurt favorites most.)"}
+    else:
+        sitem = {"item": SURPRISE_ITEM, "status": "you",
+                 "note": "Not found this run. Compare the last reported EPS with the estimate (Dreman: good surprises tend to "
+                         "lift out-of-favor stocks for several quarters; bad surprises hurt favorites most)."}
+    for new in (item, sitem):
+        old = _checklist(A, new["item"])
+        if old is not None:
+            old.update(new)
+        else:
+            cl.append(new)
+
+
+def _market_lines(E, A, mk):
+    """Dreman Rule 21: sell when the P/E (and here also the P/B) is back at the market's, even before estimated value.
+    The sell price is where BOTH ratios reach the S&P 500's at today's earnings and book value; Bernstein's Nifty-Fifty
+    note compares the P/E with twice the market's. Needs the packet's market figures; otherwise says it was unavailable."""
+    q = E.get("quote") or {}
+    price, pe, pb = num(q.get("price")), num(q.get("pe")), num(q.get("pb"))
+    ep = A.get("exitPlan") or {}
+    mpe, mpb = num((mk or {}).get("pe")), num((mk or {}).get("pb"))
+    if not (mpe and mpb):
+        if ep.get("entryType") == "value":
+            ep["cheapExit"] = {"price": None, "note": "S&P 500 P/E and P/B unavailable this run, so there is no \"no longer cheap\" sell line."}
+        return
+    if pe and pe > 2 * mpe:
+        A.setdefault("value", {}).setdefault("notes", []).append(
+            f"P/E of {pe:.1f} is more than twice the S&P 500's {mpe:.1f}: the price assumes growth lasts a long time (Bernstein's Nifty-Fifty).")
+    if ep.get("entryType") != "value":
+        return
+    src = f"S&P 500 P/E {mpe:.1f} and P/B {mpb:.2f} on {mk.get('date')}"
+    if not (price and pe and pe > 0 and pb and pb > 0):
+        ep["cheapExit"] = {"price": None, "marketPE": mpe, "marketPB": mpb,
+                           "note": f"No \"no longer cheap\" sell line: the stock has no positive P/E or P/B ({src})."}
+        return
+    line = round(max(price * mpe / pe, price * mpb / pb), 2)
+    note = (f"Also sell at about {money(line)}, where both the P/E (now {pe:.1f}) and the P/B (now {pb:.2f}) would be back at "
+            f"the market's ({src}), even if that is below estimated value (Dreman Rule 21). The line moves as earnings, book value "
+            "and the market change: re-check it when you review.")
+    tgt = num(ep.get("target"))
+    if tgt is not None and line >= tgt:
+        note = (f"The market-level line is about {money(line)} (P/E {pe:.1f} and P/B {pb:.2f} now, vs {src}), above the "
+                f"estimated value of {money(tgt)}, so the value target comes first (Dreman Rule 21).")
+    if line <= price:
+        note = (f"Already priced like the market: P/E {pe:.1f} and P/B {pb:.2f} vs {src}. By Dreman's Rule 21 this is not a "
+                "contrarian buy, and a holder would sell.")
+    ep["cheapExit"] = {"price": line, "marketPE": mpe, "marketPB": mpb, "stockPE": pe, "stockPB": pb,
+                       "date": mk.get("date"), "note": note}
+
+
 def cmd_finalize(job_path, patch_path, sec_path, engine_path=None):
     job = load(job_path)
     E = json.loads(json.dumps(engine_of(job, engine_path)))
@@ -460,6 +536,9 @@ def cmd_finalize(job_path, patch_path, sec_path, engine_path=None):
                 item["note"] = u["note"]
             if "status" in u:
                 item["status"] = u["status"]
+    # full-analysis-only checklist lines (data the quick check can't load): short interest (Staley) and the
+    # latest earnings surprise (Dreman). The helper fills them when it finds the figures; otherwise they ask the user.
+    _full_only_items(A, P)
     wa = "No walk-away filings (auditor change, restatement, late filing)"
     item = _checklist(A, "No walk-away filings")
     if item is None:
@@ -471,6 +550,8 @@ def cmd_finalize(job_path, patch_path, sec_path, engine_path=None):
         item.update(status="ok", note="None in the last 24 months of SEC filings.")
     else:
         item.update(status="you", note=P.get("walkAwayNoteWithoutPacket") or "SEC data packet unavailable this run; check the filings yourself.")
+
+    _market_lines(E, A, S.get("market"))
 
     # valuation sentence
     fv = A.setdefault("fundamentals", {})
@@ -549,8 +630,14 @@ def cmd_trigger(final_path, ticker, check=None):
             if ep.get("entryType"):
                 X, stop, target = num(ep.get("entry")) or num(A.get("entryPrice")), num(ep.get("stop")), num(ep.get("target"))
                 months = num(ep.get("timeStopMonths"))
+                review = num(ep.get("reviewMonths"))
             else:  # older report
                 X, stop, target, months = num(A.get("buyBelow")), num(ep.get("stop")), num(A.get("intrinsicValue")), num(ep.get("timeStopMonths"))
+                review = None
+            ce = num((ep.get("cheapExit") or {}).get("price"))
+            cheap_first = ep.get("entryType") == "value" and ce is not None and target is not None and ce < target
+            if cheap_first:  # Dreman Rule 21: the "no longer cheap" price comes before estimated value, so the bot sells there
+                target = ce
             why = None
             if X is None or stop is None or target is None:
                 why = "the report has no complete entry, stop and target"
@@ -567,6 +654,8 @@ def cmd_trigger(final_path, ticker, check=None):
                 value = ep.get("entryType", "value") == "value"
                 basis = (ep.get("entryBasis") or A.get("entryBasis") or "value buy-below").lower()
                 tbasis = (ep.get("targetBasis") or "intrinsic value").lower()
+                if cheap_first:
+                    tbasis = "no longer cheap: P/E and P/B back at the S&P 500's, below estimated value"
                 rec = f"{v}, confidence {A.get('confidence')}: buy at or below {money(X)} ({basis}), sell at {money(target)} ({tbasis}), stop {money(stop)}"
                 rec += "; the stop is disaster insurance only, set beyond the stock's worst past fall" if value else "; chart-based entry, not a value bargain: keep it small"
                 wait = ""
@@ -578,18 +667,21 @@ def cmd_trigger(final_path, ticker, check=None):
                 checks = ", ".join(([check] if check else []) + ["earnings, filings and news"])
                 rec += f"; check {checks} before confirming."
                 hold = int((months or 6) * 30)
+                review_txt = f", review_days: {int(review * 30)}" if review and review * 30 < hold else ""
                 cond = f"  - {{type: price, op: \"<=\", value: {X}}}\n"
                 if value:
                     cond += "  - {type: price_vs, ref: support20, op: \">=\", pct: 2}\n"
                 expires = (date.fromisoformat(today) + timedelta(days=90)).isoformat()
                 y = (f"id: {t}-forensic-{today}\nsource: forensic\nticker: {t}\naction: BUY\nconditions:\n{cond}"
-                     f"exit_plan: {{stop: {{price: {stop}}}, target: {{price: {target}}}, max_hold_days: {hold}}}\n"
+                     f"exit_plan: {{stop: {{price: {stop}}}, target: {{price: {target}}}, max_hold_days: {hold}{review_txt}}}\n"
                      f"recommendation: {_yaml_str(rec)}\nreport_date: {today}\nexpires: {expires}\n")
                 if final.get("dataThrough"):
                     y += f"data_through: {final['dataThrough']}\n"
                 ok, err = _send(y)
                 if ok:
-                    entry = f"buy at or below {money(X)} ({basis}); sell at {money(target)}; stop {money(stop)}; {int(months or 6)}-month time stop{wait}"
+                    tstop = (f"review at {int(review)} months, sell at {int(months or 6)}" if review_txt
+                             else f"{int(months or 6)}-month time stop")
+                    entry = f"buy at or below {money(X)} ({basis}); sell at {money(target)}; stop {money(stop)}; {tstop}{wait}"
                     if check:
                         entry += f"; check {check} first"
                     result = {"trigger": {"id": f"{t}-forensic-{today}", "entry": entry}}

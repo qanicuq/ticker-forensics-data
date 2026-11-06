@@ -1,0 +1,22 @@
+name: Skill Check
+
+# Runs only when a pull request changes the value-investing skill.
+# Fails if any number, quote or section from the old SKILL.md is missing in the new one.
+
+on:
+  pull_request:
+    paths:
+      - "skill/value-investing-library/SKILL.md"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Compare old and new SKILL.md
+        run: |
+          git show "origin/${{ github.base_ref }}:skill/value-investing-library/SKILL.md" > /tmp/old_skill.md
+          python tools/check_skill.py /tmp/old_skill.md skill/value-investing-library/SKILL.md

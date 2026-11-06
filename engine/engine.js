@@ -24,6 +24,7 @@ const REQ_MOS=0.33, TAX=0.25, RISK_PER_TRADE=0.015;
 /* equal weights (Chan, Kahneman): finely tuned weights mostly fit past noise */
 const W={mos:.2,forensic:.2,strength:.2,price:.2,owners:.2};
 const CYCLICAL=/oil|gas|energy|drill|petrol|steel|metal|mining|gold|copper|alumin|chemical|auto|semiconductor|airline|homebuild|construction|shipping|marine|paper|forest|commodit|machinery|trucking|coal|fertili/i;
+const TECH=/semiconductor|software|technolog|electronic|computer|hardware/i;
 const FINANCIAL=/bank|insur|financ|credit|capital markets|asset management|reit|real estate investment|mortgage|thrift|brokerage/i;
 const CAT_NOTES={
   "Asset play":"Valued on what it owns, not what it earns. Check the assets are real and someone can unlock them (Lynch, Graham net-nets).",
@@ -34,7 +35,7 @@ const CAT_NOTES={
   "Slow grower":"Owned mainly for dividends and steadiness. Pay no more than value with zero growth (Lynch, Greenwald)."
 };
 
-/* D = {sym,cat,s (snapshot),bars,prof,incQ,incA,cfQ,cfA,bsQ,bsA,rate,tgt,alert,ins,inst,tsy,missing:[]} (raw tool payloads) */
+/* D = {sym,cat,s (snapshot),bars,prof,incQ,incA,cfQ,cfA,bsQ,bsA,rate,tgt,alert,ins,inst,tsy,peersPE,peersPB,missing:[]} (raw tool payloads) */
 function engine(D){
   const s=D.s, sym=D.sym, missing=D.missing||[];
   /* ---- price history and technicals ---- */
@@ -247,6 +248,40 @@ function engine(D){
   if(V.fit&&V.impliedG!=null&&V.iv&&price>V.iv*1.1) V.notes.push(`At $${fmt(price)} the market is assuming profit growth of about ${pc(V.impliedG)} a year for 5 years (then fading), vs ${pc(g1)} assumed here.`);
   if(V.graham&&V.epv>0){ const gap=V.graham/V.epv-1; if(Math.abs(gap)>0.5) V.notes.push(`The Graham number ($${fmt(V.graham)}) and earnings power ($${fmt(V.epv)}) disagree by ${pc(Math.abs(gap))}. Treat the value as uncertain.`); }
   if(isFin) V.notes.push("Financial company: Altman Z and working-capital checks don't apply; the balance sheet needs a lender-style review.");
+  /* Neff total return ratio: (EPS growth % + dividend yield %) ÷ P/E */
+  const peNow=N(s.pe_ratio), yld=N(s.yield)||0;
+  const epsA=iA.map(y=>N(y.diluted_eps_excl_extra)??N(y.diluted_eps_incl_extra));
+  V.neff=null;
+  if(peNow>0&&epsA.length>=3&&epsA[0]>0&&epsA[epsA.length-1]>0){
+    const g=Math.pow(epsA[0]/epsA[epsA.length-1],1/(epsA.length-1))-1;
+    V.neff={epsGrowth:g,yield:yld,pe:peNow,ratio:(g*100+yld*100)/peNow,years:epsA.length-1};
+    V.notes.push(`Neff total return ratio: (EPS growth ${pct(g,1)} a year over ${epsA.length-1} years + dividend yield ${pc(yld,1)}) ÷ P/E ${fmt(peNow,1)} = ${fmt(V.neff.ratio,2)}. Neff bought at about twice the market's ratio (in 1999 the market's was 0.35, so he wanted above 0.7) with growth of 6-20%; check that the growth will continue.`);
+  }
+  /* cyclicals on normal earnings (Neff): never capitalize peak earnings */
+  V.normalPE=cyclical&&V.earnings>0&&shares?price/(V.earnings/shares):null;
+  if(V.normalPE!=null) V.notes.push(`Cyclical: P/E on normal (mid-cycle) after-tax operating earnings is ${fmt(V.normalPE,1)}${peNow>0?`, against ${fmt(peNow,1)} on the last 12 months`:""}. Neff valued cyclicals on normal earnings and never on peak earnings.`);
+  /* paying for "endless" growth (Bernstein: the Nifty-Fifty). The full analysis compares with the S&P 500's own P/E. */
+  V.peHigh=peNow>40;
+  if(V.peHigh) V.notes.push(`P/E of ${fmt(peNow,1)} prices in a lot of growth. Bernstein's Nifty-Fifty lesson: in December 1972 Polaroid sold at 96× earnings and McDonald's at 80× against 19× for the S&P 500; over the next 21 years only 11 of the 50 beat the index.`);
+  /* rank within its industry (Dreman Rule 20: the cheapest 20% of each industry beat the market). Webull's peer list
+     is sorted highest first and stops at 20 names, so a rank is only given when the list is complete (under 20 names);
+     a cut-off list can't show where the cheap end is. Only positive ratios count; rank 1 = cheapest. */
+  const peerRank=(payload,own)=>{
+    const rows=findArr(payload,x=>x&&x.symbol!=null&&x.rank!=null);
+    if(!rows||!(own>0)) return null;
+    const name=asJson(payload)?.industry_name||null;
+    if(rows.length>=20) return {industry:name,cutOff:true};
+    const vals=rows.filter(r=>r.symbol!==sym).map(r=>N(r.value)).filter(v=>v>0);
+    vals.push(own); vals.sort((a,b)=>a-b);
+    return vals.length>=5?{industry:name,rank:vals.indexOf(own)+1,n:vals.length,value:own}:null; };
+  V.industry={pe:peerRank(D.peersPE,peNow),pb:peerRank(D.peersPB,N(s.pb_ratio))};
+  { const ip=V.industry.pe, ib=V.industry.pb, ind=(ip||ib)?.industry;
+    const say=(x,l)=>x&&!x.cutOff?`${l} ${fmt(x.value,1)} is ${x.rank===1?"the lowest":`number ${x.rank} from the lowest`} of ${x.n}${x.rank<=Math.ceil(x.n*0.2)?" (cheapest 20%)":x.rank>x.n-Math.ceil(x.n*0.2)?" (most expensive 20%)":""}`:null;
+    const parts=[say(ip,"P/E"),say(ib,"P/B")].filter(Boolean);
+    const cut=[ip?.cutOff?"P/E":null,ib?.cutOff?"P/B":null].filter(Boolean);
+    if(parts.length||cut.length) V.notes.push(`Within its industry${ind?` (${ind})`:""}: `+(parts.length?parts.join("; ")+". ":"")
+      +(cut.length?`Webull lists only the 20 highest ${cut.join(" and ")} figures for this industry, so where it sits among the cheapest can't be told. `:"")
+      +"Dreman: the cheapest 20% of each industry beat the market over 1970-96, separately from being cheap overall (Rule 20)."); }
   const agree=[V.epv,V.graham,V.tbvps].filter(x=>x!=null&&x>0);
   V.methodsAbovePrice=agree.filter(x=>x>price).length; V.methodsCount=agree.length;
 
@@ -272,6 +307,13 @@ function engine(D){
     const i0=days(q0.inv,q0.cogs), i4=days(q4.inv,q4.cogs);
     if(i0!=null&&i4&&q0.inv>0.03*q0.ta){ const ch=i0/i4-1; const st=ch>0.2?"warn":"ok"; metric("Days inventory",`${fmt(i0,0)} days (was ${fmt(i4,0)})`,st,"Inventory ÷ quarterly cost of sales. Rising points to slow sales or obsolete stock (EM4).");
       if(st!=="ok") flag("Inventory building up","medium",`Days of inventory rose from ${fmt(i4,0)} to ${fmt(i0,0)} in a year.`); }
+    /* inventory growing faster than the cost of what was sold, year over year (Staley: the most reliable sign a maker or
+       retailer is about to stumble). Same quarter a year earlier removes seasons; cost of goods is the last four quarters. */
+    const cogsT=ttm(iQ,"cost_of_revenue"), cogsP=ttm(iQ,"cost_of_revenue",4);
+    if(q0.inv>0.03*q0.ta&&q4.inv>0&&cogsT>0&&cogsP>0){ const invG=q0.inv/q4.inv-1, cogsG=cogsT/cogsP-1, gap=invG-cogsG, tech=TECH.test(industry);
+      const st=gap>0.2?(tech?"warn":"bad"):gap>0.1?"warn":"ok";
+      metric("Inventory vs cost of goods (1 year)",`inventory ${pct(invG)} vs cost of goods ${pct(cogsG)}`,st,"Inventory growing much faster than the cost of what was sold means product isn't selling: Staley's most reliable sign of a stumble. Technology firms often build inventory before a launch.");
+      if(gap>0.2) flag("Inventory growing faster than sales",tech?"low":"medium",`Inventory up ${pct(invG)} in a year while cost of goods sold changed ${pct(cogsG)}${tech?" (a technology company: may be stock built for a launch; check the 10-Q)":""}. If it continues for two quarters, treat it as a thesis break (Staley).`); }
     const p0=days(q0.ap,q0.cogs), p4=days(q4.ap,q4.cogs);
     const cfoPrev=ttm(cQ,"cfo",4), niPrev=ttm(iQ,"net_income",4);
     if(p0!=null&&p4){ const ch=p0/p4-1; const cfoG=F.cfo!=null&&cfoPrev>0?F.cfo/cfoPrev-1:null, niG=F.ni!=null&&niPrev>0?F.ni/niPrev-1:null;
@@ -288,6 +330,30 @@ function engine(D){
     const fcfY=cA.slice(0,3).map(y=>N(y.cfo)+(N(y.capex)||0)); const neg=fcfY.filter(x=>x<0).length;
     metric("Free cash flow (3 years)",fcfY.map(x=>fmtBig(x)).join(" · "),neg>=2?"warn":"ok","Operating cash flow minus capex, newest first.");
     if(neg>=2&&ni3>0) flag("Free cash flow negative while profitable","medium",`Free cash flow was negative in ${neg} of the last 3 years despite reported profits (capitalised costs or heavy reinvestment).`);
+  }
+  /* can it fund its own growth? (Staley) sustainable growth = return on equity × share of profit kept. Growing much faster
+     while raising stock or debt most years means lenders and new shareholders decide its fate. Not for banks and insurers. */
+  let sust=null;
+  if(!isFin&&iA.length>=3&&cA.length>=3){
+    const roes=iA.slice(0,3).map(y=>{ const b=at(bA,y.end_date), eq=N(b?.total_sh_equity)??N(b?.total_equity); return eq>0?N(y.net_income)/eq:null; }).filter(Number.isFinite);
+    const ni3=sum(cA.slice(0,3).map(y=>N(y.net_income)||0)), div3=sum(cA.slice(0,3).map(y=>-(N(y.total_cash_dividends_paid)||0)));
+    if(roes.length&&ni3>0&&cagr!=null){
+      const roe=mean(roes), keep=clamp(1-div3/ni3,0,1);
+      const raised=cA.slice(0,3).filter(y=>{ const rv=N(at(iA,y.end_date)?.total_revenue); return rv>0&&(N(y.net_stock_iss_ret)||0)+(N(y.net_debt_iss_ret)||0)>0.02*rv; }).length;
+      sust={roe,keep,g:roe*keep,salesG:cagr,raised};
+      const st=cagr>sust.g+0.05?(raised>=2?"bad":"warn"):"ok";
+      metric("Sustainable growth",`${pc(sust.g,1)} (return on equity ${pc(roe)} × ${pc(keep)} kept) vs sales ${pct(cagr)} a year`,st,`The growth a company can pay for itself. Raised stock or debt (over 2% of sales) in ${raised} of the last 3 years (Staley).`);
+      if(st==="bad") flag("Growth depends on outside money","medium",`Sales grow ${pct(cagr)} a year, well above the ${pc(sust.g,1)} it can fund itself, and it raised stock or debt in ${raised} of the last 3 years. When the money stops, lenders decide its fate (Staley).`);
+      else if(roe>=0.15&&cagr<=sust.g) strengths.push(`Can fund its own growth (return on equity ${pc(roe)}, sustainable growth ${pc(sust.g,1)})`);
+    }
+  }
+  /* how much of pretax profit is real business? (Staley) interest, "other income" and one-off gains as a share of pretax */
+  if(!isFin){
+    const nonOp=iA.slice(0,3).map(y=>{ const ebt=N(y.ebt), op=N(y.op_income); if(!(ebt>0)||op==null) return null; return (Math.max(0,ebt-op)+Math.max(0,-unus(y)))/ebt; });
+    const known=nonOp.filter(x=>x!=null);
+    if(known.length){ const hi=known.filter(x=>x>0.3).length; const st=hi>=2?"warn":"ok";
+      metric("Non-operating share of pretax profit",nonOp.map(x=>x==null?"n/a":pc(x)).join(" · "),st,"Interest, 'other income' and one-off gains as a share of pretax profit, newest year first. Large and repeating means little real earning power (Staley: Morrison Knudsen was about 70%).");
+      if(hi>=2) flag("Much of the profit isn't from the business","medium",`Over 30% of pretax profit came from non-operating items in ${hi} of the last ${known.length} years.`); }
   }
   if(iA.length>=2&&cA.length>=2){
     const d0=N(cA[0].dna), d1=N(cA[1].dna), g0=N(at(bA,cA[0].end_date)?.ppe_gross), g1=N(at(bA,cA[1].end_date)?.ppe_gross);
@@ -428,7 +494,10 @@ function engine(D){
     /* disaster insurance only (Chan): wider than the stock's worst past fall, never closer than 25% */
     const stopPct=Math.max(0.25,worstDD+0.05);
     stop=Math.max(entry*(1-stopPct),0.01); stopBasis=`Disaster stop ${pc(stopPct)} below entry: wider than the stock's worst fall in the last ${ddMonths} months (${pc(worstDD)}), so normal swings don't shake you out`;
-    target=V.iv; targetBasis="Sell or trim when price reaches estimated value"; timeStop=18;
+    target=V.iv; targetBasis="Sell or trim when price reaches estimated value";
+    /* two-step time stop (Dreman; Bernstein: DeBondt-Thaler's losers turned over 36 months): review at 18 months,
+       sell at 36 if the value still hasn't shown up (42 for a cyclical waiting out its cycle) */
+    timeStop=cyclical?42:36;
   }else{
     stop=Math.min(Math.max(entry-2*atrV,entry*0.85),entry*0.94); stopBasis="Chart stop: 2× a normal day's move under the entry (kept 6–15% under it)";
     if(V.fit&&V.iv!=null&&V.iv>=entry*1.15){ target=V.iv; targetBasis="Sell or trim at estimated value"; }
@@ -437,6 +506,9 @@ function engine(D){
   }
   stop=Math.round(stop*100)/100; target=target!=null?Math.round(target*100)/100:null;
   const exitPlan={entry, entryType, entryBasis, entryDist:entry/price-1, target, targetBasis, stop, stopBasis, timeStopMonths:timeStop,
+    reviewMonths:entryType==="value"?18:null,
+    timeStopBasis:entryType==="value"?`Review at 18 months: if nothing has improved and no catalyst is in sight, re-check the value or trim. Sell at ${timeStop} months if the value still hasn't shown up (Dreman; cheap stocks often take 2-3 years to turn).`:"Sell after 6 months if the pullback trade hasn't worked.",
+    orderNote:`Use a limit order at or below $${fmt(entry)} and let the stock come to you; don't chase the price (Winner's Curse: overpaying out of a determination to win).`,
     thesisBreak:["A new serious forensic flag, restatement, auditor change or late filing","Operating margin falls below the worst of the last five years ("+(minM!=null?pc(minM,1):"n/a")+")",entryType==="value"?"Value re-check shows the margin of safety gone without the price rising":"Price closes below the stop: the pullback turned into a breakdown"]};
   if(verdict==="WATCH"&&V.mos!=null&&V.mos<REQ_MOS) why=entryType==="value"?`Needs a ${pc(REQ_MOS)} margin of safety; buy below $${fmt(V.buyBelow)} (${pct(entry/price-1)} from here)`:`Not a bargain; realistic entry $${fmt(entry)} (value line $${fmt(V.buyBelow)})`;
   else if(verdict==="WATCH"&&!V.fit) why=`Value methods can't explain this price; chart entry $${fmt(entry)}`;
@@ -461,6 +533,11 @@ function engine(D){
   const advDollar=v20*price;
   /* pre-buy checklist (NMW §11.B, Greenwald §3.6) */
   const daysToE=nextE?Math.round((new Date(nextE)-Date.now())/864e5):null;
+  /* has "normal" moved? (Bernstein) shrinking sales, a margin below every recent year's, or a falling gross margin */
+  const oldNormal=[], priorM=ttmAdjM!=null?margins.slice(1):margins;
+  if(iA.length>=3&&cagr!=null&&cagr<0) oldNormal.push(`sales shrinking ${pct(cagr)} a year over ${iA.length-1} years`);
+  if(ttmAdjM!=null&&priorM.length>=3&&ttmAdjM<Math.min(...priorM)) oldNormal.push(`the last 12 months' operating margin (${pc(ttmAdjM,1)}) is below every one of the last ${priorM.length} years`);
+  if(F.gm!=null&&F.gmY!=null&&F.gm-F.gmY<-0.02) oldNormal.push(`gross margin fell from ${pc(F.gmY,1)} to ${pc(F.gm,1)} in a year`);
   const checklist=[
     {item:"Edge: why is the market wrong, in one sentence?",status:"you",note:O.neglected?"Neglected: few analysts or low institutional ownership.":ret(126)!=null&&ret(126)<-0.25?`Sold off ${pc(-ret(126))} in six months.`:"Write it down before buying."},
     {item:"Thesis-break condition written down",status:"auto",note:exitPlan.thesisBreak[1]},
@@ -471,6 +548,7 @@ function engine(D){
     {item:"Price behaviour: has the selling stopped?",status:priceScore>=75?"ok":"warn",note:priceState+"."},
     {item:"No big bad-news drop in the last two weeks",status:newsDrop?"warn":"ok",note:newsDrop?`${dropTxt}. Drops on real news tend to keep drifting; wait 2–4 weeks, then re-check the value (Chan).`:`No one-day fall of ${pc(dropLim)} or more in the last 10 sessions.`},
     {item:"Why is this available to me? Forced seller or broken business?",status:"you",note:(new Date().getMonth()>=9&&ret(251)!=null&&ret(251)<-0.3?`Tax-loss season and down ${pc(-ret(251))} over the year: some selling may be for tax reasons, not the business. `:"")+"Selling by someone who needs cash (fund redemptions, index removal, spinoff, tax-loss season) tends to reverse; a change in the business doesn't. Compare with value traps: cheap after a restatement, on 'adjusted' numbers, or at a cyclical peak."},
+    {item:"Is the old normal still normal?",status:oldNormal.length?"warn":"you",note:oldNormal.length?`The mean may have moved: ${oldNormal.join("; ")}. Write one line on why the old P/E, margins and price still apply before counting on a return to them (Bernstein: regression to the mean is a tool, not a law).`:"Write one line on why the old P/E, margins and price still apply (same business, competition and debt). Buyers in 1930 after a 50% fall saw another 80% fall: the mean can move (Bernstein)."},
     {item:"No leverage, and you'd stay calm if it halved",status:"you",note:"Sleep test."}];
   const thesis=verdict==="BUY"?`Trades at $${fmt(price)} against an estimated value of $${fmt(V.iv)} (${V.ivMethod.toLowerCase()}), a ${pc(V.mos)} margin of safety. ${flags.length?`${flags.length} item${flags.length>1?"s":""} to check in the forensic section.`:"No forensic red flags found."}`
     :!V.fit?`${V.ratio<0.25?`Priced at $${fmt(price)}, about ${fmt(1/V.ratio,1)}× the $${fmt(V.iv)} value estimate, so a value buy price isn't meaningful here. A realistic entry from the chart is $${fmt(entry)} (${exitPlan.entryBasis.toLowerCase()}).`:`The $${fmt(V.iv)} estimate is over 4× the $${fmt(price)} price, which points to a data problem rather than a bargain.`} ${V.impliedG!=null?`The price assumes about ${pc(V.impliedG)} a year profit growth for 5 years.`:""}`
@@ -484,13 +562,13 @@ function engine(D){
   const quote={companyName:name,price,change:N(s.change),changeRatio:N(s.change_ratio),marketCap:mcap,pe:N(s.pe_ratio),ps:N(s.ps_ratio),pb:N(s.pb_ratio),epsTtm:N(s.eps_ttm),divYield:N(s.yield),high52:N(s.fifty_two_wk_high),low52:N(s.fifty_two_wk_low),asOf:new Date(N(s.quote_time)||Date.now()).toISOString()};
   const tech={rsi14:rsi,macdHist,atr14:atr,sma20:s20,sma50:s50,sma200:s200,annVol60d:vol60,ret1m:ret(21),ret3m:ret(63),ret6m:ret(126),ret1y:ret(251),volRatio20v50:v50?v20/v50:null,low60:lo60,high60:hi60,lastCross,advDollar};
   return {quote,tech,chart,missing,fin:{currency:cur,rev:F.rev,ebit:F.ebit,ni:F.ni,lastQ:iQ[0]?.end_date||null,annual:iA.slice(0,5).map(y=>({end:y.end_date,rev:N(y.total_revenue),op:N(y.op_income),ni:N(y.net_income)}))},
-    analysis:{companyName:name,verdict,verdictWhy:why,rating:legacy,confidence,horizon:entryType==="value"?"Until value is reached (time stop 18 months)":"Swing from a pullback (time stop 6 months)",thesis,summary,
+    analysis:{companyName:name,verdict,verdictWhy:why,rating:legacy,confidence,horizon:entryType==="value"?`Until value is reached (review at 18 months, sell at ${timeStop} if it hasn't worked)`:"Swing from a pullback (time stop 6 months)",thesis,summary,
       valueScores:vs,valueTotal:Math.round(total),
       scores:{fundamental:fundLegacy,valuation:valuLegacy,technical:techLegacy,sentiment:senti},
       priceTargets:tg&&N(tg.median)?{bull:N(tg.high),base:N(tg.median),bear:N(tg.low)}:{bull:price*(1+vol60),base:price,bear:price*(1-vol60)},
       valueTargets:V.fit?{bull:V.bull,base:V.iv,bear:V.bear}:null, intrinsicValue:V.fit?V.iv:null, buyBelow:V.buyBelow, entryPrice:verdict==="AVOID"?null:entry, entryType, entryBasis, marginOfSafety:V.mos, valueFit:V.fit,
       value:V, newsDrop, worstDrop:worstDD, category:{name:category,note:CAT_NOTES[category],cyclical,cagr,special:null},
-      forensic:{metrics,...X}, owners:O, priceBehaviour:{state:priceState,signals:pb}, exitPlan, checklist,
+      forensic:{metrics,...X,sustainableGrowth:sust}, owners:O, priceBehaviour:{state:priceState,signals:pb}, exitPlan, checklist,
       fundamentals:{overview:industry?`${name} · ${industry}`:"",strengths,weaknesses,valuation:N(s.pe_ratio)?`P/E ${fmt(s.pe_ratio,1)}, P/S ${fmt(s.ps_ratio,1)}${F.fcf!=null&&mcap?`, free-cash-flow yield ${pc(F.fcf/mcap,1)}`:""}.`:""},
       technicals:{trend,momentum:`MACD ${macdHist>0?"positive":"negative"}, RSI ${fmt(rsi,0)}, 6-month return ${pct(ret(126))}.`,support:[`$${fmt(lo60)} (60-day low)`].concat(s200&&s200<price?[`$${fmt(s200)} (200-day)`]:[]),resistance:[`$${fmt(hi60)} (60-day high)`].concat(N(s.fifty_two_wk_high)?[`$${fmt(s.fifty_two_wk_high)} (52-week high)`]:[]),notes},
       redFlags:flags,walkAway:[],news:[],recentEvents:nextE?[{date:nextE,event:"Next earnings report",impact:al?.eps_est?`EPS estimate ${fmt(al.eps_est)} vs ${fmt(al.eps_ly)} a year ago`:""}]:[],
