@@ -340,7 +340,7 @@ def sec_get(url):
 FINANCE_ROLES = ("chief financial officer", "chief accounting officer", "principal accounting officer",
                  "principal financial officer", "controller")
 LEAVING = ("resign", "retire", "depart", "step down", "stepping down", "will leave", "leaving", "terminat", "separat",
-           "transition", "step away", "stepping away")
+           "transition", "step away", "stepping away", "succeed", "successor", "replace")
 CHANGE = LEAVING + ("appoint", "elect", "named", "promot", "successor")
 
 def classify_502(html_text):
