@@ -433,6 +433,9 @@ def cmd_sec(job_path, packet_path, engine_path=None):
         out["valuationSentence"] += " Not verified: " + "; ".join(out["unverified"]) + "."
     if (an or {}).get("operating_income_basis"):
         out["valuationSentence"] += f" SEC operating income was {an['operating_income_basis']}."
+    out["judge"].append("SOURCES: every analyst action, target change or event you write in bullBear, recentEvents, risks or the "
+                        "summary must match an item in news (with its link) or a filing in the packet. Leave out anything you can't "
+                        "link, and prefer company, SEC, wire-service or major-outlet sources over aggregators.")
     out["judge"].append("SEC CHECK WORDING: describe the SEC cross-check in the summary only with this sentence, word for word, "
                         f"and claim nothing beyond it: \"{out['valuationSentence']}\"")
     out["judge"].append("EARNINGS SURPRISE: if two sources give a different actual EPS or estimate that would change the "
