@@ -369,6 +369,18 @@ ANNUAL_TAGS = {
     "cfo": ["NetCashProvidedByUsedInOperatingActivities"],
     "capex": ["PaymentsToAcquirePropertyPlantAndEquipment"],
     "acquisitions": ["PaymentsToAcquireBusinessesNetOfCashAcquired"],
+    # extra lines for settling a Webull-vs-SEC mismatch (the cloud helper can't reach the SEC, so they travel here)
+    "revenue_total": ["Revenues"],
+    "revenue_contract": ["RevenueFromContractWithCustomerExcludingAssessedTax", "RevenueFromContractWithCustomerIncludingAssessedTax"],
+    "gross_profit": ["GrossProfit"],
+    "operating_expenses": ["OperatingExpenses", "CostsAndExpenses"],
+    "sga": ["SellingGeneralAndAdministrativeExpense"],
+    "research_development": ["ResearchAndDevelopmentExpense"],
+    "restructuring": ["RestructuringCharges"],
+    "impairment": ["GoodwillImpairmentLoss", "AssetImpairmentCharges"],
+    "interest_expense": ["InterestExpense", "InterestExpenseNonoperating"],
+    "pretax_income": ["IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+                      "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments"],
 }
 
 def annual_series(gaap, tags, years=5):

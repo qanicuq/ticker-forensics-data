@@ -1,0 +1,33 @@
+name: Phone alert
+# Sends one ntfy push for the Forensic Analysis cloud helper, whose sessions can reach GitHub but not ntfy.sh.
+# The topic stays in the NTFY_TOPIC secret; the title and message come in as inputs (never shell-interpolated).
+on:
+  workflow_dispatch:
+    inputs:
+      title:
+        required: true
+      message:
+        required: true
+      priority:
+        required: false
+        default: high
+permissions: {}
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          TITLE: ${{ inputs.title }}
+          MESSAGE: ${{ inputs.message }}
+          PRIORITY: ${{ inputs.priority }}
+        run: |
+          for i in 1 2; do
+            if curl -fsS -H "Title: $TITLE" -H "Priority: $PRIORITY" -d "$MESSAGE" "https://ntfy.sh/$NTFY_TOPIC" | grep -q '"id"'; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "ntfy did not accept the alert"
+          exit 1

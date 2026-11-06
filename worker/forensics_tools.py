@@ -351,18 +351,23 @@ def cmd_sec(job_path, packet_path, engine_path=None):
                 link = (f"https://data.sec.gov/api/xbrl/companyconcept/CIK{int(pk['cik']):010d}/us-gaap/{tag}.json"
                         if pk.get("cik") else None)
                 out["serious"].append({"figure": label, "webull": page, "sec": sec, "pctApart": round(d, 1), "secLink": link})
+                end = label.split()[1] if label.startswith("Fiscal ") else None
+                sec_lines = {k: v.get(end) for k, v in (an or {}).items() if end and isinstance(v, dict) and v.get(end) is not None}
+                wb_row = {k: row[0].get(k) for k in ("rev", "op", "ni", "un", "oi")} if row else {"rev_ttm": page}
                 out["judge"].append(
                     f"SETTLE \"{label}\": Webull {big(page)} vs SEC {big(sec)} ({d:.1f}% apart). The value is built on this figure, so "
-                    "no paper-bot trigger is sent until you settle it. Use at most 4 lookups for the whole job: WebFetch "
-                    f"{link or 'the SEC company-facts page for this line'} (ask for every 10-K entry for that fiscal year with val and "
-                    "filed date), mcp__Webull__get_income_statement (category US_STOCK, type ANNUAL, count 5: that year's op_income, "
-                    "unusual_expense_income, inter_expse_inc_net_oper, ebt, total_revenue), and if needed one related SEC line or the "
-                    "10-K. Then add to patch.json a key \"settled\": a list with one entry per SETTLE item: {\"figure\": the quoted "
-                    "figure name copied exactly, \"right\": \"Webull\" (a filed figure supports Webull's number) | \"SEC\" (Webull's "
-                    "number is wrong) | \"both\" (the same thing measured two valid ways) | \"unsure\", \"how\": one plain sentence "
-                    "with the numbers you saw and their source}. Say Webull or both only when a filed figure you actually saw "
-                    "explains the whole gap (within 2%); otherwise SEC or unsure. Never guess. An unsettled item holds the trigger "
-                    "and the script alerts the user. Mention how it was settled in the summary.")
+                    "no paper-bot trigger is sent until you settle it. SEC figures for that fiscal year from the company's 10-K "
+                    f"(from the data packet; this session can't reach the SEC site): {json.dumps(sec_lines)}. Webull's figures "
+                    f"(rev, op = operating income, ni, un = Webull's one-time items, oi = interest Webull puts inside operating "
+                    f"income): {json.dumps(wb_row)}. If you need more, you may make ONE call to mcp__Webull__get_income_statement "
+                    "(category US_STOCK, type ANNUAL, count 5). Then add to patch.json a key \"settled\": a list with one entry per "
+                    "SETTLE item: {\"figure\": the quoted figure name copied exactly, \"right\": \"Webull\" (a filed SEC figure "
+                    "supports Webull's number) | \"SEC\" (Webull's number is wrong) | \"both\" (the same thing measured two valid "
+                    "ways, e.g. the SEC line leaves out items Webull counts) | \"unsure\", \"how\": one plain sentence with the "
+                    "arithmetic and the lines you used}. Say Webull or both only when filed SEC figures you can see explain the whole "
+                    "gap to within 2% (for example SEC gross profit minus SEC operating expenses, or SEC operating income minus a "
+                    "filed restructuring or impairment line, equals Webull's figure); otherwise SEC or unsure. Never guess. An "
+                    "unsettled item holds the trigger and the script alerts the user. Mention how it was settled in the summary.")
     if worst_core > 10:
         out["add"]["valueNotes"].append(f"Revenue or operating income differs from SEC filings by about {worst_core:.0f}%, so the estimated value may be off by about that much.")
     out["allWithin2"] = bool(out["compared"]) and all(c["pctApart"] <= 2 for c in out["compared"])
@@ -678,23 +683,13 @@ def _send(yaml_text):
 
 
 def alert(title, msg, priority="high"):
-    """Phone alert through ntfy (push only). The topic comes from the NTFY_TOPIC environment variable or the file
-    ntfy_topic.txt that the worker writes in its own working folder; it is never printed. Tries twice."""
-    topic = os.environ.get("NTFY_TOPIC") or (open("ntfy_topic.txt").read().strip() if os.path.exists("ntfy_topic.txt") else "")
-    if not topic:  # the worker's private copy of the scripts (artifact database, never GitHub) also carries the topic
-        import glob
-        for f in glob.glob("sys/**/engine.json", recursive=True):
-            try:
-                d = load(f)
-                topic = (d.get("data") or d).get("ntfy") or ""
-            except Exception:
-                pass
-    if not topic:
-        return False
+    """Phone alert (ntfy push only). The cloud helper's sessions can reach GitHub but not ntfy.sh, so this starts the
+    repo's "Phone alert" job (alert.yml), which sends the push with the topic kept in a GitHub secret. Tries twice.
+    Returns True when GitHub accepted the job."""
+    body = json.dumps({"ref": "main", "inputs": {"title": title[:200], "message": msg[:3000], "priority": priority}})
     for _ in range(2):
-        p = subprocess.run(["curl", "-s", "-H", f"Title: {title}", "-H", f"Priority: {priority}", "-d", msg,
-                            f"https://ntfy.sh/{topic}"], capture_output=True, text=True)
-        if '"id"' in p.stdout:
+        ok, _out = gh(["api", "-X", "POST", f"repos/{REPO_DATA}/actions/workflows/alert.yml/dispatches", "--input", "-"], body)
+        if ok:
             return True
     return False
 
@@ -732,8 +727,8 @@ def _send_checked(yaml_text, spec, alert_title, alert_body):
     the phone alert if the message never arrives. Returns (sent, note)."""
     ok, err = _send(yaml_text)
     if not ok:
-        alert(alert_title, f"{alert_body} It failed to send: {err[:150]}")
-        return False, f"Trigger failed to send after a retry: {err[:150]}"
+        sent = alert(alert_title, f"{alert_body} It failed to send: {err[:150]}")
+        return False, f"Trigger failed to send after a retry: {err[:150]}" + ("" if sent else " (the phone alert also failed to send)")
     if os.environ.get("DRY_RUN") or _bot_records(spec, 85):
         return True, ""
     path = os.path.abspath(f"verify_{spec.get('id') or spec.get('ticker')}_{now_ms()}.json")
@@ -812,8 +807,9 @@ def cmd_trigger(final_path, ticker, check=None):
                              if x.get("ticker") == t and x.get("source") == "forensic" and x.get("status") in ("active", "awaiting_confirm")]
                     tail = (f" An older trigger ({older[0].get('id')}) is still active and may rest on the same numbers."
                             if older else " No older trigger is active for it.")
-                    alert(f"{t}: no trigger (data check)", f"{t} was held back: {dhold['note'].split('No paper-bot trigger: ', 1)[-1]}"
-                          f"{tail} Ask Claude to check which number is right.")
+                    if not alert(f"{t}: no trigger (data check)", f"{t} was held back: {dhold['note'].split('No paper-bot trigger: ', 1)[-1]}"
+                                 f"{tail} Ask Claude to check which number is right."):
+                        result["triggerNote"] += " The phone alert about this failed to send."
             else:
                 X, stop, target = round(X, 2), round(stop, 2), round(target, 2)
                 value = ep.get("entryType", "value") == "value"
@@ -852,7 +848,7 @@ def cmd_trigger(final_path, ticker, check=None):
                 if ok and sn:
                     days = (today_ny() - date.fromisoformat(sn["resultsFiled"])).days
                     auto = days <= 10  # the bot's automatic re-run list covers releases from the last 10 days
-                    alert(f"{t}: trigger set but on hold",
+                    held_alert = alert(f"{t}: trigger set but on hold",
                           f"This {t} report uses figures through {sn['dataThrough']}, but {t} filed newer results on "
                           f"{sn['resultsFiled']} that Webull hasn't loaded yet. The bot won't buy until a report has them. "
                           + ("A fresh analysis runs automatically once Webull has the new quarter."
@@ -866,6 +862,8 @@ def cmd_trigger(final_path, ticker, check=None):
                         entry += f"; check {check} first"
                     if sn:
                         entry += f"; on hold until a report includes the results filed {sn['resultsFiled']}"
+                        if not held_alert:
+                            entry += " (the phone alert about this failed to send)"
                     result = {"trigger": {"id": f"{t}-forensic-{today}", "entry": entry + (f" ({err})" if err else "")}}
                 else:
                     result = {"triggerNote": f"{err}."}
