@@ -1,10 +1,9 @@
 # Cheap Options Scan
-Run: 2026-11-04 19:40 EST
+Run: 2026-11-05 19:40 EST
 
 | Ticker | Spot | Exp | Days | Strike | Call | Put | IV | HV20 | Ratio | Your list | Earnings unk |
 |--------|------|-----|------|--------|------|-----|----|------|-------|-----------|--------------|
-| AVGO | 325.48 | 2026-12-04 | 30 | 325.0 | 16.85 | 15.15 | 0.4308 | 0.442 | 0.9747 |  |  |
-| NKE | 40.49 | 2026-12-04 | 30 | 40.0 | 2.17 | 1.8 | 0.4283 | 0.3237 | 1.3229 |  |  |
+| NKE | 39.56 | 2026-12-04 | 29 | 40.0 | 1.69 | 2.29 | 0.445 | 0.3421 | 1.3007 |  |  |
 
 Cheap ratio = option-implied move ÷ the stock's actual move over the last 20 trading days. Under 0.75 = unusually cheap. Not advice; when you buy an option, the most you can lose is what you paid.
 
