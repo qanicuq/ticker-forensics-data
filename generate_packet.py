@@ -339,7 +339,8 @@ def sec_get(url):
 
 FINANCE_ROLES = ("chief financial officer", "chief accounting officer", "principal accounting officer",
                  "principal financial officer", "controller")
-LEAVING = ("resign", "retire", "depart", "step down", "stepping down", "will leave", "leaving", "terminat", "separat")
+LEAVING = ("resign", "retire", "depart", "step down", "stepping down", "will leave", "leaving", "terminat", "separat",
+           "transition", "step away", "stepping away")
 CHANGE = LEAVING + ("appoint", "elect", "named", "promot", "successor")
 
 def classify_502(html_text):
@@ -351,11 +352,14 @@ def classify_502(html_text):
     starts = [m.end() for m in re.finditer(r"item\s*5\.02", low)]
     if not starts:
         return "unclear", ""
-    body = low[starts[-1]:]
+    # the item's own heading ("Item 5.02 Departure of Directors ...") marks where its text starts; later mentions are
+    # cross-references such as "described in Item 5.02 above"
+    heads = [i for i in starts if "departure" in low[i:i + 40]]
+    body = low[(heads or starts)[0]:]
     nxt = re.search(r"item\s*\d\.\d\d|signature", body)  # the item ends at the next item or the signatures
     if nxt:
         body = body[:nxt.start()]
-    body = re.sub(r"^[\s.:\-]*departure of directors.*?compensatory arrangements of certain officers\.?", "", body).strip()
+    body = re.sub(r"^[^a-z]*departure of directors.*?compensatory arrangements of certain officers\.?", "", body).strip()
     # a finance role within ~300 characters before (or 100 after) a leaving word; not sentence splits, which
     # break on "Inc." and similar
     for m in re.finditer(r"\b(?:" + "|".join(re.escape(w) for w in LEAVING) + ")", body):
