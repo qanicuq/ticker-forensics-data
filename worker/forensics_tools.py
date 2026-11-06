@@ -366,7 +366,9 @@ def cmd_sec(job_path, packet_path, engine_path=None):
                     "ways, e.g. the SEC line leaves out items Webull counts) | \"unsure\", \"how\": one plain sentence with the "
                     "arithmetic and the lines you used}. Say Webull or both only when filed SEC figures you can see explain the whole "
                     "gap to within 2% (for example SEC gross profit minus SEC operating expenses, or SEC operating income minus a "
-                    "filed restructuring or impairment line, equals Webull's figure); otherwise SEC or unsure. Never guess. An "
+                    "filed restructuring or impairment line, equals Webull's figure; or SEC pretax_income equals Webull's pretax "
+                    "income \"ebt\" from the Webull call, which shows the gap is only where the operating line is drawn: that is "
+                    "\"both\"); otherwise SEC or unsure. Never guess. An "
                     "unsettled item holds the trigger and the script alerts the user. Mention how it was settled in the summary.")
     if worst_core > 10:
         out["add"]["valueNotes"].append(f"Revenue or operating income differs from SEC filings by about {worst_core:.0f}%, so the estimated value may be off by about that much.")
