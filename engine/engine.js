@@ -569,7 +569,7 @@ function engine(D){
     "This quick check reads Webull numbers only; run the full analysis for SEC filings, walk-away checks and news before acting."].filter(Boolean).join(" ");
   const quote={companyName:name,price,change:N(s.change),changeRatio:N(s.change_ratio),marketCap:mcap,pe:N(s.pe_ratio),ps:N(s.ps_ratio),pb:N(s.pb_ratio),epsTtm:N(s.eps_ttm),divYield:N(s.yield),high52:N(s.fifty_two_wk_high),low52:N(s.fifty_two_wk_low),asOf:new Date(N(s.quote_time)||Date.now()).toISOString()};
   const tech={rsi14:rsi,macdHist,atr14:atr,sma20:s20,sma50:s50,sma200:s200,annVol60d:vol60,ret1m:ret(21),ret3m:ret(63),ret6m:ret(126),ret1y:ret(251),volRatio20v50:v50?v20/v50:null,low60:lo60,high60:hi60,lastCross,advDollar};
-  return {quote,tech,chart,missing,fin:{currency:cur,rev:F.rev,ebit:F.ebit,ni:F.ni,lastQ:iQ[0]?.end_date||null,annual:iA.slice(0,5).map(y=>({end:y.end_date,rev:N(y.total_revenue),op:N(y.op_income),ni:N(y.net_income),un:N(y.unusual_expense_income),oi:N(y.inter_expse_inc_net_oper)}))},
+  return {quote,tech,chart,missing,fin:{currency:cur,fx,rev:F.rev,ebit:F.ebit,ni:F.ni,lastQ:iQ[0]?.end_date||null,annual:iA.slice(0,5).map(y=>({end:y.end_date,rev:N(y.total_revenue),op:N(y.op_income),ni:N(y.net_income),un:N(y.unusual_expense_income),oi:N(y.inter_expse_inc_net_oper)}))},
     analysis:{companyName:name,verdict,verdictWhy:why,rating:legacy,confidence,horizon:entryType==="value"?`Until value is reached (review at 18 months, sell at ${timeStop} if it hasn't worked)`:"Swing from a pullback (time stop 6 months)",thesis,summary,
       valueScores:vs,valueTotal:Math.round(total),
       scores:{fundamental:fundLegacy,valuation:valuLegacy,technical:techLegacy,sentiment:senti},

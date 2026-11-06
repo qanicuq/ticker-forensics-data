@@ -326,19 +326,36 @@ def cmd_sec(job_path, packet_path, engine_path=None):
             sec_val[e.get("field")] = num(e["sec"])
     fin = E.get("fin")
     cur = (fin or {}).get("currency", "USD")
+    foreign = bool(pk.get("foreign_filer"))  # files a 20-F/40-F: annual figures only, no 10-Q
+    sec_cur = (an or {}).get("currency") or ("USD" if an else None)
+    # the page converts a foreign company's figures to dollars at today's rate; undo that so both sides are compared
+    # in the company's own reporting currency and no exchange rate enters the check
+    fx = 1.0 if cur == "USD" else num((fin or {}).get("fx"))
+    annual_why = None
     pairs = [("Market cap", num((E.get("quote") or {}).get("marketCap")), sec_val.get("market_cap"))]
-    if fin and cur == "USD":
+    if fin and cur == "USD" and not foreign:
         pairs.append(("Trailing 12-month revenue", num(fin.get("rev")), sec_val.get("revenue_4q_sum")))
-        if an:
+    if fin and an:
+        if sec_cur != cur:
+            annual_why = f"the SEC figures are in {sec_cur} and Webull's in {cur}"
+        elif not fx:
+            annual_why = "this report was made before the page saved its exchange rate; re-run it"
+        else:
             for row in fin.get("annual") or []:
+                own = {k: (num(v) / fx if num(v) is not None else None) if k in ("rev", "op", "ni", "un", "oi") else v
+                       for k, v in row.items()}
                 for key, label in (("rev", "revenue"), ("op", "operating income"), ("ni", "net income")):
                     s = num((an.get({"rev": "revenue", "op": "operating_income", "ni": "net_income"}[key]) or {}).get(row.get("end")))
                     if s is not None:
-                        pairs.append((f"Fiscal {row.get('end')} {label}", num(row.get(key)), s, row))
-    elif fin and cur != "USD":
-        out["judge"].append(f"Financials are reported in {cur}: only market cap was cross-checked against SEC figures.")
+                        pairs.append((f"Fiscal {row.get('end')} {label}", own.get(key), s, own))
+        newest = an.get("newest_end")
+        if foreign and newest and (today - date.fromisoformat(newest)).days > 400:
+            out["unverified"].append(f"the annual report (the newest {pk.get('foreign_filer')} figures end {newest}, "
+                                     "over 13 months ago)")
     elif not fin:
         out["judge"].append("This report was made before the page saved its revenue figures: only market cap was cross-checked; compare revenue yourself if the summary states it.")
+    def bigc(x, label=""):  # dollars, except annual figures of a company reporting in another currency
+        return big(x) if cur == "USD" or not label.startswith("Fiscal ") else big(x).replace("$", "") + " " + cur
     worst_core = 0
     for label, page, sec, *row in pairs:
         d = _pct_apart(page, sec)
@@ -361,7 +378,7 @@ def cmd_sec(job_path, packet_path, engine_path=None):
         if d > 5:
             out["disagreements"] += 1
             out["add"]["redFlags"].append({"issue": "Data sources disagree", "severity": "low",
-                                           "detail": f"{label}: Webull {big(page)}{' (' + basis + ')' if basis else ''} vs SEC {big(sec)} ({d:.1f}% apart)"})
+                                           "detail": f"{label}: Webull {bigc(page, label)}{' (' + basis + ')' if basis else ''} vs SEC {bigc(sec, label)} ({d:.1f}% apart)"})
             if "revenue" in label or "operating income" in label:
                 worst_core = max(worst_core, d)
                 # serious: a figure the value is built on. No paper-bot trigger until Claude settles which source is right.
@@ -370,12 +387,13 @@ def cmd_sec(job_path, packet_path, engine_path=None):
                     tag = "GrossProfit"  # the company files no operating-income line; the SEC figure was built from these
                 link = (f"https://data.sec.gov/api/xbrl/companyconcept/CIK{int(pk['cik']):010d}/us-gaap/{tag}.json"
                         if pk.get("cik") else None)
-                out["serious"].append({"figure": label, "webull": page, "sec": sec, "pctApart": round(d, 1), "secLink": link})
+                out["serious"].append({"figure": label, "webull": page, "sec": sec, "pctApart": round(d, 1), "secLink": link,
+                                       "currency": cur if label.startswith("Fiscal ") else "USD"})
                 end = label.split()[1] if label.startswith("Fiscal ") else None
                 sec_lines = {k: v.get(end) for k, v in (an or {}).items() if end and isinstance(v, dict) and v.get(end) is not None}
                 wb_row = {k: row[0].get(k) for k in ("rev", "op", "ni", "un", "oi")} if row else {"rev_ttm": page}
                 out["judge"].append(
-                    f"SETTLE \"{label}\": Webull {big(page)} vs SEC {big(sec)} ({d:.1f}% apart). The value is built on this figure, so "
+                    f"SETTLE \"{label}\": Webull {bigc(page, label)} vs SEC {bigc(sec, label)} ({d:.1f}% apart). The value is built on this figure, so "
                     "no paper-bot trigger is sent until you settle it. SEC figures for that fiscal year from the company's 10-K "
                     f"(from the data packet; this session can't reach the SEC site): {json.dumps(sec_lines)}. Webull's figures "
                     f"(rev, op = operating income, ni, un = Webull's one-time items, oi = interest Webull puts inside operating "
@@ -410,11 +428,14 @@ def cmd_sec(job_path, packet_path, engine_path=None):
         return ("annual " + fig.split(" ", 2)[2]) if fig.startswith("Fiscal ") else fig.lower()
     # the figures the value and the trigger rest on: any that could not be compared is a "can not verify" hold
     done = {short(c["figure"]) for c in out["compared"]}
-    for need in ("market cap", "trailing 12-month revenue", "annual revenue", "annual operating income"):
+    needs = ("market cap", "annual revenue", "annual operating income") if foreign else \
+            ("market cap", "trailing 12-month revenue", "annual revenue", "annual operating income")
+    for need in needs:
         if need not in done:
-            why = ("financials are not in US dollars" if fin and cur != "USD" else
+            why = ("no SEC share count was found" if need == "market cap" else
                    "the page saved no revenue figures" if not fin else
-                   "no SEC share count was found" if need == "market cap" else
+                   annual_why if annual_why and need.startswith("annual") else
+                   "the company files no 12-month figures with the SEC" if need.startswith("trailing") and foreign else
                    "no comparable SEC figure was found")
             out["unverified"].append(f"{need} against SEC filings ({why})")
     if out["compared"]:
@@ -544,6 +565,11 @@ def _market_lines(E, A, mk):
                        "date": mk.get("date"), "note": note}
 
 
+def _amt(x, item):  # a serious-mismatch amount in the currency it was compared in
+    c = item.get("currency") or "USD"
+    return big(x) if c == "USD" else big(x).replace("$", "") + " " + c
+
+
 def cmd_finalize(job_path, patch_path, sec_path, engine_path=None):
     job = load(job_path)
     E = json.loads(json.dumps(engine_of(job, engine_path)))
@@ -582,10 +608,10 @@ def cmd_finalize(job_path, patch_path, sec_path, engine_path=None):
         A.setdefault("value", {}).setdefault("notes", []).extend(value_notes)
     # anything that could not be verified stops the trigger (user rule, 2026-11-06): figures with no SEC match, and
     # gaps Claude could not settle
-    unverified = list(S.get("unverified") or []) + [f"{i['figure']} (Webull {big(i['webull'])} vs SEC {big(i['sec'])}, "
+    unverified = list(S.get("unverified") or []) + [f"{i['figure']} (Webull {_amt(i['webull'], i)} vs SEC {_amt(i['sec'], i)}, "
                                                       f"{i['pctApart']}% apart, not settled)" for i in open_items if i["right"] == "unsure"]
     if open_items or unverified:
-        parts = [f"{i['figure']} Webull {big(i['webull'])} vs SEC {big(i['sec'])} ({i['pctApart']}% apart, {i['right']}: {i['how']})"
+        parts = [f"{i['figure']} Webull {_amt(i['webull'], i)} vs SEC {_amt(i['sec'], i)} ({i['pctApart']}% apart, {i['right']}: {i['how']})"
                  for i in open_items if i["right"] != "unsure"]
         if unverified:
             parts.append("can not verify " + "; ".join(unverified))

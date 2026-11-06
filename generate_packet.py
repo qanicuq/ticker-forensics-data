@@ -198,7 +198,7 @@ except Exception as e:
 if FOREIGN_FORM:
     packet["foreign_filer"] = FOREIGN_FORM
     packet["fundamentals"]["note"] = f"latest available via edgartools from the {FOREIGN_FORM}; may be in the company's own currency, not USD"
-    packet["notes"].append(f"Foreign company: files a {FOREIGN_FORM} each year and 6-K reports in between, with no quarterly SEC figures, so the SEC cross-check (market cap, P/E, revenue) and annual SEC figures are skipped.")
+    packet["notes"].append(f"Foreign company: files a {FOREIGN_FORM} each year and 6-K reports in between, with no quarterly SEC figures, so only market cap and the annual report's figures can be checked (no P/E or 12-month revenue check).")
 
 def days(e):
     return (pd.Timestamp(e["end"]) - pd.Timestamp(e["start"])).days
@@ -241,8 +241,6 @@ def pick_revenue_tag(gaap):
 sec_market_cap = sec_pe = sec_rev_sum = None
 facts = None
 try:
-    if FOREIGN_FORM:
-        raise StopIteration
     facts = sec_facts()
     gaap = facts.get("us-gaap", {})
     # share count: the cover-page figure, else the balance-sheet one; either is used only if it is under ~13 months
@@ -264,8 +262,9 @@ try:
     if total_shares is None:
         # companies with two share classes (e.g. Nike) now file the cover-page count per class, which SEC's
         # company-facts feed leaves out; the diluted weighted-average count from the newest 10-Q/10-K covers all classes
-        wavg = [e for e in gaap.get("WeightedAverageNumberOfDilutedSharesOutstanding", {}).get("units", {}).get("shares", [])
-                if "start" in e and str(e.get("form", "")).startswith(("10-Q", "10-K"))]
+        wavg = [e for e in (gaap.get("WeightedAverageNumberOfDilutedSharesOutstanding")
+                            or facts.get("ifrs-full", {}).get("AdjustedWeightedAverageShares") or {}).get("units", {}).get("shares", [])
+                if "start" in e and str(e.get("form", "")).startswith(("10-Q", "10-K", "20-F", "40-F"))]
         if wavg:
             newest = max(wavg, key=lambda e: (e["end"], -days(e), e["filed"]))  # newest period, shortest span
             if (datetime.utcnow() - datetime.fromisoformat(newest["end"])).days <= 400:
@@ -277,6 +276,8 @@ try:
                                 if stale_end else "sec facts: no shares-outstanding figure filed")
     elif last_close:
         sec_market_cap = round2(total_shares * last_close)
+    if FOREIGN_FORM:  # no 10-Q figures: the quarterly P/E and 12-month revenue checks don't apply
+        raise StopIteration
     eps = last_4_quarters(gaap.get("EarningsPerShareDiluted", {}).get("units", {}).get("USD/shares", []))
     if eps and last_close and sum(eps) > 0:
         sec_pe = round2(last_close / sum(eps))
@@ -310,7 +311,9 @@ def compare_field(field, yf_val, sec_val, threshold):
     else:
         packet["cross_check"]["matches"].append(entry)
 
-if not FOREIGN_FORM:
+if FOREIGN_FORM:
+    compare_field("market_cap", yf_market_cap, sec_market_cap, 5)
+else:
     compare_field("market_cap", yf_market_cap, sec_market_cap, 5)
     if sec_pe == "negative":
         packet["cross_check"]["matches"].append({"field": "pe", "note": "last 4 quarters EPS negative, P/E not meaningful", "yfinance": yf_pe})
@@ -447,14 +450,45 @@ ANNUAL_TAGS = {
                       "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments"],
 }
 
-def annual_series(gaap, tags, years=5):
-    """Fiscal-year values from 10-K filings: {fy_end: value}, newest first, using the tag with the latest data."""
+# foreign filers using international accounting rules (IFRS) tag their 20-F/40-F figures with these names instead
+IFRS_TAGS = {
+    "revenue": ["Revenue", "RevenueFromContractsWithCustomers"],
+    "operating_income": ["ProfitLossFromOperatingActivities"],
+    "net_income": ["ProfitLossAttributableToOwnersOfParent", "ProfitLoss"],
+    "cfo": ["CashFlowsFromUsedInOperatingActivities"],
+    "capex": ["PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities", "PurchaseOfPropertyPlantAndEquipment"],
+    "acquisitions": ["CashFlowsUsedInObtainingControlOfSubsidiariesOrOtherBusinessesClassifiedAsInvestingActivities"],
+    "revenue_total": ["Revenue"],
+    "revenue_contract": ["RevenueFromContractsWithCustomers"],
+    "gross_profit": ["GrossProfit"],
+    "operating_expenses": [],
+    "sga": ["SellingGeneralAndAdministrativeExpense"],
+    "research_development": ["ResearchAndDevelopmentExpense"],
+    "restructuring": [],
+    "impairment": ["ImpairmentLossRecognisedInProfitOrLoss"],
+    "interest_expense": ["FinanceCosts", "InterestExpense"],
+    "pretax_income": ["ProfitLossBeforeTax"],
+}
+ANNUAL_FORMS = ("10-K", "10-K/A", "20-F", "20-F/A", "40-F", "40-F/A")
+
+def report_currency(tax, tags):
+    """The currency the company reports its revenue in (USD, EUR, INR, ...): the unit with the newest annual figure."""
+    best = None
+    for tag in tags:
+        for unit, entries in tax.get(tag, {}).get("units", {}).items():
+            ends = [e["end"] for e in entries if e.get("form") in ANNUAL_FORMS and "start" in e]
+            if ends and (best is None or max(ends) > best[1]):
+                best = (unit, max(ends))
+    return best[0] if best else None
+
+def annual_series(gaap, tags, years=5, unit="USD"):
+    """Fiscal-year values from 10-K/20-F/40-F filings: {fy_end: value}, newest first, using the tag with the latest data."""
     best = {}
     for tag in tags:
-        units = gaap.get(tag, {}).get("units", {}).get("USD", [])
+        units = gaap.get(tag, {}).get("units", {}).get(unit, [])
         vals = {}
         for e in units:
-            if e.get("form") not in ("10-K", "10-K/A", "20-F") or "start" not in e:
+            if e.get("form") not in ANNUAL_FORMS or "start" not in e:
                 continue
             if not 350 <= days(e) <= 380:
                 continue
@@ -477,9 +511,13 @@ except Exception as e:
     packet["errors"].append(f"sec submissions: {type(e).__name__}: {str(e)[:120]}")
 
 try:
-    gaap_all = facts.get("us-gaap", {}) if facts else {}
-    if gaap_all:
-        packet["annual"] = {k: annual_series(gaap_all, tags) for k, tags in ANNUAL_TAGS.items()}
+    tax_name, tags_map = "us-gaap", ANNUAL_TAGS
+    if facts and FOREIGN_FORM and not report_currency(facts.get("us-gaap", {}), ANNUAL_TAGS["revenue"]):
+        tax_name, tags_map = "ifrs-full", IFRS_TAGS
+    gaap_all = facts.get(tax_name, {}) if facts else {}
+    cur_unit = report_currency(gaap_all, tags_map["revenue"]) if gaap_all else None
+    if gaap_all and cur_unit:
+        packet["annual"] = {k: annual_series(gaap_all, tags, unit=cur_unit) for k, tags in tags_map.items()}
         fcf_acq = {}
         for end, cfo in packet["annual"]["cfo"].items():
             capex = packet["annual"]["capex"].get(end) or 0
@@ -491,7 +529,8 @@ try:
         # checked: gross profit minus selling/admin and R&D. A gap the build can't explain goes to the settle step.
         an = packet["annual"]
         oi, rd = an["operating_income"], an.get("research_development") or {}
-        built = [y for y, gp in an["gross_profit"].items() if y not in oi and an["sga"].get(y) is not None]
+        # only under US rules: IFRS income statements carry other operating lines this simple build would miss
+        built = [y for y, gp in an["gross_profit"].items() if y not in oi and an["sga"].get(y) is not None] if tax_name == "us-gaap" else []
         for y in built:
             oi[y] = round2(an["gross_profit"][y] - an["sga"][y] - (rd.get(y) or 0))
         an["operating_income"] = dict(sorted(oi.items(), reverse=True))
@@ -499,7 +538,11 @@ try:
             an["operating_income_basis"] = ("built from SEC gross profit minus selling and admin" + (" minus R&D" if rd else "")
                                             + " for fiscal years ending " + ", ".join(sorted(built, reverse=True))
                                             + " (no operating-income line filed)")
-        packet["annual"]["note"] = "Fiscal years from 10-K XBRL, USD, newest first. capex and acquisitions are cash paid (positive)."
+        packet["annual"]["note"] = (f"Fiscal years from {FOREIGN_FORM or '10-K'} XBRL ({tax_name}), in {cur_unit}, newest first. "
+                                    "capex and acquisitions are cash paid (positive).")
+        packet["annual"]["currency"] = cur_unit
+        packet["annual"]["taxonomy"] = tax_name
+        packet["annual"]["newest_end"] = max(packet["annual"]["revenue"]) if packet["annual"]["revenue"] else None
 except Exception as e:
     packet["errors"].append(f"sec annual: {type(e).__name__}: {str(e)[:120]}")
 
