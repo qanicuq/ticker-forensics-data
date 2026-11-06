@@ -218,7 +218,8 @@ def cmd_sec(job_path, packet_path, engine_path=None):
         print(json.dumps(out, indent=1))
         return
     out["packet"] = True
-    out["market"] = pk.get("market")  # the S&P 500's P/E and P/B for the "no longer cheap" sell line
+    out["market"] = pk.get("market")
+    out["resultsFiled"] = (pk.get("earnings_release") or {}).get("filed")  # newest 8-K item 2.02 (earnings release)  # the S&P 500's P/E and P/B for the "no longer cheap" sell line
 
     gov = pk.get("governance")
     if gov is None:
@@ -629,6 +630,18 @@ def cmd_finalize(job_path, patch_path, sec_path, engine_path=None):
              "engine": {"__delete__": True}, "quote": E.get("quote"), "tech": E.get("tech"), "chart": E.get("chart"),
              "filings": filings, "missing": missing, "analysis": A,
              "dataThrough": (E.get("fin") or {}).get("lastQ")}
+    # numbers older than the company's newest earnings release (Webull hadn't loaded the new quarter yet). Same
+    # 100-day rule as the paper bot's own check (DATA_LAG_DAYS), so the bot holds the trigger until a fresh report.
+    filed, dt = S.get("resultsFiled"), final["dataThrough"]
+    try:
+        stale = bool(filed and dt and (date.fromisoformat(filed) - date.fromisoformat(str(dt))).days > 100)
+    except ValueError:
+        stale = False
+    if stale:
+        final["staleNumbers"] = {"resultsFiled": filed, "dataThrough": str(dt)}
+        notes.append(f"These figures end with the quarter of {dt}, but the company filed newer results with the SEC on {filed} "
+                     "that Webull hadn't loaded yet, so the value may be out of date. The paper bot won't buy on this report; "
+                     "a fresh one runs once Webull has the new quarter.")
     if notes:
         A.setdefault("value", {}).setdefault("notes", []).extend(notes)
     size = len(json.dumps(final))
@@ -829,16 +842,30 @@ def cmd_trigger(final_path, ticker, check=None):
                      f"recommendation: {_yaml_str(rec)}\nreport_date: {today}\nexpires: {expires}\n")
                 if final.get("dataThrough"):
                     y += f"data_through: {final['dataThrough']}\n"
+                sn = final.get("staleNumbers")
+                if sn:  # the bot holds any buy until a report includes these results, and queues the re-run itself
+                    y += f"earnings_last: '{sn['resultsFiled']}'\n"
                 ok, err = _send_checked(y, {"kind": "buy", "id": f"{t}-forensic-{today}", "entry": X, "target": target},
                                         f"{t}: trigger not recorded",
                                         f"The new {t} trigger (buy at or below {money(X)}, sell {money(target)}, stop {money(stop)}) "
                                         f"did not reach the paper bot. Any older {t} trigger is still in place.")
+                if ok and sn:
+                    days = (today_ny() - date.fromisoformat(sn["resultsFiled"])).days
+                    auto = days <= 10  # the bot's automatic re-run list covers releases from the last 10 days
+                    alert(f"{t}: trigger set but on hold",
+                          f"This {t} report uses figures through {sn['dataThrough']}, but {t} filed newer results on "
+                          f"{sn['resultsFiled']} that Webull hasn't loaded yet. The bot won't buy until a report has them. "
+                          + ("A fresh analysis runs automatically once Webull has the new quarter."
+                             if auto else "Run Forensic Analysis again once Webull shows the new quarter (the automatic re-run only "
+                                          "covers releases from the last 10 days)."), priority="default")
                 if ok:
                     tstop = (f"review at {int(review)} months, sell at {int(months or 6)}" if review_txt
                              else f"{int(months or 6)}-month time stop")
                     entry = f"buy at or below {money(X)} ({basis}); sell at {money(target)}; stop {money(stop)}; {tstop}{wait}"
                     if check:
                         entry += f"; check {check} first"
+                    if sn:
+                        entry += f"; on hold until a report includes the results filed {sn['resultsFiled']}"
                     result = {"trigger": {"id": f"{t}-forensic-{today}", "entry": entry + (f" ({err})" if err else "")}}
                 else:
                     result = {"triggerNote": f"{err}."}
