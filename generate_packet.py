@@ -674,6 +674,51 @@ for query in NEWS_QUERIES:
 news_items.sort(key=lambda x: x["date"] or "", reverse=True)
 packet["news"] = {"source": "Google News RSS", "window": "last 30 days (earnings search: last 100 days)", "queries": NEWS_QUERIES, "count": len(news_items), "dropped_not_about_company": news_dropped, "items": news_items}
 # ---------- 7. Latest earnings press release (8-K item 2.02, exhibit EX-99.1) ----------
+# Foreign filers announce results on a 6-K instead, which has no item numbers, so the 6-K's own documents are read
+RESULTS_RE = (r"financial results|(?:results|report) for the (?:first|second|third|fourth|full|quarter|half|three|six|nine|twelve)|"
+              r"(?:first|second|third|fourth)[- ]quarter (?:\d{4} )?(?:and (?:full[- ]year|half[- ]year) (?:\d{4} )?)?(?:financial )?results|"
+              r"\b(?:q[1-4]|half[- ]year|interim|full[- ]year|quarterly) (?:\d{4} )?(?:financial )?(?:results|report)\b|earnings release")
+
+def foreign_results_6k(cik, forms, dates, accns, cutoff, limit=10):
+    """Newest 6-K in the window whose main document or EX-99 exhibit reads as a results announcement.
+    Returns (filed date, accession, document href) or (None, None, None)."""
+    import requests, html as _h
+    email = os.environ.get("SEC_IDENTITY_EMAIL", "user@example.com")
+    ua = {"User-Agent": f"qanicuq {email}"}
+    tried = 0
+    for i, form in enumerate(forms):
+        d = dates[i] if i < len(dates) else ""
+        if form != "6-K" or d < cutoff:
+            continue
+        tried += 1
+        if tried > limit:
+            break
+        accn = accns[i]
+        idx = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accn.replace('-', '')}/{accn}-index.htm"
+        try:
+            rows = re.findall(r"<tr\b[^>]*>.*?</tr>", requests.get(idx, headers=ua, timeout=30).text, flags=re.S | re.I)
+        except Exception:
+            continue
+        docs = []
+        for row in rows:
+            m = re.search(r"""href\s*=\s*["']([^"']+\.htm[l]?)["']""", row, flags=re.I)
+            plain = _h.unescape(re.sub(r"<[^>]+>", " ", row))
+            if m and re.search(r"\b(?:6-K|EX-99[.0-9]*)\b", plain):
+                docs.append((m.group(1), plain))
+        for href, desc in docs[:3]:
+            url = href[len("/ix?doc="):] if href.startswith("/ix?doc=") else href
+            url = "https://www.sec.gov" + url if url.startswith("/") else url
+            if re.search(RESULTS_RE, desc.lower()):
+                return d, accn, href
+            try:
+                head = requests.get(url, headers=ua, timeout=30).text
+            except Exception:
+                continue
+            text = re.sub(r"\s+", " ", _h.unescape(re.sub(r"<[^>]+>", " ", head))).lower()[:6000]
+            if re.search(RESULTS_RE, text):
+                return d, accn, href
+    return None, None, None
+
 packet["earnings_release"] = None
 try:
     from edgar import Company as _Co
@@ -694,8 +739,12 @@ try:
             er_filed = er_date
             er_accn = er_accns[er_i] if er_i < len(er_accns) else ""
             break
+    er_kind, er_href_pre = "8-K item 2.02", None
+    if not er_filed and FOREIGN_FORM:
+        er_filed, er_accn, er_href_pre = foreign_results_6k(er_cik, er_forms, er_dates, er_accns, er_cutoff)
+        er_kind = "6-K results announcement"
     if not er_filed:
-        packet["errors"].append("earnings release: no 8-K item 2.02 filed in the last 120 days")
+        packet["errors"].append(f"earnings release: no {er_kind} filed in the last 120 days")
     else:
         er_accn_nd = er_accn.replace("-", "")
         er_index_url = f"https://www.sec.gov/Archives/edgar/data/{er_cik}/{er_accn_nd}/{er_accn}-index.htm"
@@ -725,6 +774,8 @@ try:
                 er_href_fallback = er_row_href
         if er_href is None:
             er_href = er_href_fallback
+        if er_href_pre:  # a 6-K: the document that read as a results announcement
+            er_href = er_href_pre
         if not er_href:
             packet["errors"].append(f"earnings release: no EX-99 exhibit in {er_index_url}")
         else:
@@ -755,7 +806,8 @@ try:
                 er_lines.append(er_line)
             er_text = "\n".join(er_lines)
             packet["earnings_release"] = {
-                "source": "SEC 8-K item 2.02, exhibit EX-99.1 (company press release)",
+                "source": "SEC 8-K item 2.02, exhibit EX-99.1 (company press release)" if not er_href_pre
+                          else "SEC 6-K results announcement (foreign filer)",
                 "filed": er_filed,
                 "accession": er_accn,
                 "index_url": er_index_url,
