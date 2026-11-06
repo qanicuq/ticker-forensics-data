@@ -340,7 +340,7 @@ def sec_get(url):
 FINANCE_ROLES = ("chief financial officer", "chief accounting officer", "principal accounting officer",
                  "principal financial officer", "controller")
 LEAVING = ("resign", "retire", "depart", "step down", "stepping down", "will leave", "leaving", "terminat", "separat",
-           "transition", "step away", "stepping away", "succeed", "successor", "replace")
+           "transition", "step away", "stepping away", "succeed", "successor", "replace", "cease")
 CHANGE = LEAVING + ("appoint", "elect", "named", "promot", "successor")
 
 def classify_502(html_text):
@@ -363,7 +363,8 @@ def classify_502(html_text):
     # a finance role within ~300 characters before (or 100 after) a leaving word; not sentence splits, which
     # break on "Inc." and similar
     for m in re.finditer(r"\b(?:" + "|".join(re.escape(w) for w in LEAVING) + ")", body):
-        if any(r in body[max(0, m.start() - 300):m.end() + 100] for r in FINANCE_ROLES):
+        win = body[max(0, m.start() - 300):m.end() + 100]
+        if any(r in win for r in FINANCE_ROLES) or re.search(r"\b(?:cfo|cao)\b", win):
             return "finance officer departure", body[max(0, m.start() - 200):m.end() + 80].strip()
     m = re.search(r"\b(?:" + "|".join(re.escape(w) for w in CHANGE) + ")", body)
     if m:
