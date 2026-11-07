@@ -475,6 +475,26 @@ IFRS_TAGS = {
 }
 ANNUAL_FORMS = ("10-K", "10-K/A", "20-F", "20-F/A", "40-F", "40-F/A")
 
+def new_listing_from_submissions(sub, today=None):
+    """A recent IPO (e.g. SPCX, June 2026) can't have four quarters or an annual report on file with the SEC yet.
+    Returns {ipo_prospectus, first_report, quarterly_reports} when the company filed an IPO prospectus (424B4) and its
+    first 10-Q/10-K/20-F/40-F is under 15 months old; else None. Skipped when SEC pages the history (older filings
+    not in this file), because then the first report can't be seen."""
+    if sub.get("filings", {}).get("files"):
+        return None
+    rec = sub.get("filings", {}).get("recent", {})
+    pairs = sorted(zip(rec.get("filingDate", []), rec.get("form", [])))
+    reports = [(d, f) for d, f in pairs if f in ("10-Q", "10-K", "20-F", "40-F")]
+    today = today or datetime.utcnow().date()
+    if not reports or reports[0][0] < str(today - timedelta(days=456)):
+        return None
+    ipo = [d for d, f in pairs if f == "424B4" and d <= reports[0][0]]
+    if not ipo:
+        return None
+    return {"ipo_prospectus": ipo[-1], "first_report": reports[0][0],
+            "quarterly_reports": sum(1 for _, f in reports if f == "10-Q"),
+            "annual_reports": sum(1 for _, f in reports if f != "10-Q")}
+
 def report_currency(tax, tags):
     """The currency the company reports its revenue in (USD, EUR, INR, ...): the unit with the newest annual figure."""
     best = None
@@ -506,7 +526,9 @@ try:
     from edgar import Company as _Co
     _cik = int(_Co(TICKER).cik)
     packet["cik"] = _cik  # lets the worker link straight to the SEC figures when sources disagree
-    gov, shown = governance_from_submissions(sec_get(f"https://data.sec.gov/submissions/CIK{_cik:010d}.json"))
+    _sub = sec_get(f"https://data.sec.gov/submissions/CIK{_cik:010d}.json")
+    gov, shown = governance_from_submissions(_sub)
+    packet["new_listing"] = new_listing_from_submissions(_sub)
     classify_recent_502(gov)
     packet["governance"] = gov
     if shown:
@@ -822,6 +844,11 @@ try:
             }
 except Exception as e:
     packet["errors"].append(f"earnings release: {type(e).__name__}: {str(e)[:120]}")
+# a new listing hasn't filed enough with the SEC yet: those gaps are expected, not errors (the worker still holds the trigger)
+if packet.get("new_listing"):
+    _gap = lambda e: e.startswith("sec facts: fewer than 4 quarters") or (e.startswith("cross_check missing ") and e.endswith("sec=None"))
+    packet["new_listing"]["expected_gaps"] = [e for e in packet["errors"] if _gap(e)]
+    packet["errors"] = [e for e in packet["errors"] if not _gap(e)]
 with open(OUT_PATH, "w") as f:
     json.dump(packet, f, separators=(",", ":"), default=str)
 

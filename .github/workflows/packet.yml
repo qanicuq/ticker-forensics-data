@@ -58,6 +58,7 @@ jobs:
         run: |
           MISMATCHES=$(python -c "import json; d=json.load(open('packets/${{ inputs.ticker }}.json')); print(len(d.get('cross_check',{}).get('mismatches',[])))" 2>/dev/null || echo 0)
           ERRORS=$(python -c "import json; d=json.load(open('packets/${{ inputs.ticker }}.json')); print(len(d.get('errors',[])))" 2>/dev/null || echo 0)
-          curl -d "mismatches: $MISMATCHES, errors: $ERRORS" \
+          NEW=$(python -c "import json; n=json.load(open('packets/${{ inputs.ticker }}.json')).get('new_listing'); print(f\", new listing (IPO prospectus {n['ipo_prospectus']}): {len(n.get('expected_gaps',[]))} expected gaps from too few SEC filings\" if n else '')" 2>/dev/null || echo "")
+          curl -d "mismatches: $MISMATCHES, errors: $ERRORS$NEW" \
                -H "Title: Ticker Forensics packet: ${{ inputs.ticker }}" \
                "https://ntfy.sh/$NTFY_TOPIC"

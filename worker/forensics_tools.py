@@ -454,10 +454,14 @@ def cmd_sec(job_path, packet_path, engine_path=None):
     done = {short(c["figure"]) for c in out["compared"]}
     needs = ("market cap", "annual revenue", "annual operating income") if foreign else \
             ("market cap", "trailing 12-month revenue", "annual revenue", "annual operating income")
+    nl = pk.get("new_listing")  # a recent IPO hasn't filed four quarters or an annual report yet
+    nl_why = (f"new listing: IPO prospectus filed {nl['ipo_prospectus']}, only {nl['quarterly_reports']} quarterly and "
+              f"{nl['annual_reports']} annual report(s) filed so far" if nl else None)
     for need in needs:
         if need not in done:
             why = ("no SEC share count was found" if need == "market cap" else
                    "the page saved no revenue figures" if not fin else
+                   nl_why if nl_why else
                    annual_why if annual_why and need.startswith("annual") else
                    "the company files no 12-month figures with the SEC" if need.startswith("trailing") and foreign else
                    "no comparable SEC figure was found")
