@@ -834,6 +834,11 @@ def _recorded(spec, triggers, positions):
     if spec["kind"] == "buy":
         return any(x.get("id") == spec["id"] and num(((x.get("exit_plan") or {}).get("target") or {}).get("price")) == spec["target"]
                    and any(num(c.get("value")) == spec["entry"] for c in x.get("conditions") or []) for x in triggers)
+    if spec["kind"] == "recheck":
+        t = spec["ticker"]
+        return (not any(p.get("ticker") == t and p.get("source") == "forensic" for p in positions)
+                or any(p.get("ticker") == t and p.get("source") == "forensic"
+                       and p.get("recheck_received") == today_ny().isoformat() for p in positions))
     t = spec["ticker"]
     return (not any(x.get("ticker") == t and x.get("source") == "forensic" and x.get("action") == "BUY"
                     and x.get("status") in ("active", "awaiting_confirm") for x in triggers)
@@ -922,91 +927,100 @@ def cmd_trigger(final_path, ticker, check=None):
             cheap_first = ep.get("entryType") == "value" and ce is not None and target is not None and ce < target
             if cheap_first:  # Dreman Rule 21: the "no longer cheap" price comes before estimated value, so the bot sells there
                 target = ce
-            why = None
+            waiting = [p for p in (_bot_file("ledger.yml").get("positions") or []) if p.get("ticker") == t and p.get("source") == "forensic" and p.get("target_reached")]
             dhold = A.get("dataHold")
-            if dhold:
-                why = "data hold: " + dhold["note"].split("No paper-bot trigger: ", 1)[-1].rstrip(".")
-            elif X is None or stop is None or target is None:
-                why = "the report has no complete entry, stop and target"
-            elif target < X * 1.1:
-                why = f"the target {money(target)} is less than 10% above the entry {money(X)}"
-            elif stop >= X:
-                why = f"the stop {money(stop)} is not below the entry {money(X)}"
-            elif price and (price - X) / price > 0.20:
-                why = f"the entry {money(X)} is more than 20% under the current price {money(price)}"
-            if why:
-                result = {"triggerNote": f"No trigger sent: {why}."}
-                if dhold:
-                    older = [x for x in _bot_file("triggers.yml").get("triggers") or []
-                             if x.get("ticker") == t and x.get("source") == "forensic" and x.get("status") in ("active", "awaiting_confirm")]
-                    tail = (f" An older trigger ({older[0].get('id')}) is still active and may rest on the same numbers."
-                            if older else " No older trigger is active for it.")
-                    unv = dhold.get("unverified") or []
-                    if unv:
-                        first = unv[0].split(" (")[0]
-                        title = f"{t} can not verify {first}" + (f" (+{len(unv) - 1} more)" if len(unv) > 1 else "")
-                    else:
-                        title = f"{t}: no trigger (data check)"
-                    if not alert(title, f"{t} was held back, no trigger sent: {dhold['note'].split('No paper-bot trigger: ', 1)[-1]}"
-                                 f"{tail} Ask Claude to check it."):
-                        result["triggerNote"] += " The phone alert about this failed to send."
+            if waiting and not dhold:
+                target_is_value = bool(cheap_first) or not ep.get("entryType") or "estimated value" in str(ep.get("targetBasis") or "").lower()
+                franchise = bool((A.get("value") or {}).get("franchise"))
+                tgt = round(target, 2) if target is not None else None
+                y = f"id: {t}-recheck-{today}\nsource: forensic\nticker: {t}\naction: RECHECK\ntarget: {tgt if tgt is not None else 'null'}\ntarget_is_value: {str(target_is_value).lower()}\nfranchise: {str(franchise).lower()}\n"
+                ok, err = _send_checked(y, {"kind": "recheck", "ticker": t}, f"{t}: re-check not recorded", f"The fresh {t} analysis could not reach the paper bot. The held {t} position is still waiting at its target.")
+                result = {"trigger": {"id": f"{t}-recheck-{today}", "entry": "Re-check sent for the held position at its target" + (f" ({err})" if err else "")}} if ok else {"triggerNote": f"{err}."}
             else:
-                X, stop, target = round(X, 2), round(stop, 2), round(target, 2)
-                value = ep.get("entryType", "value") == "value"
-                basis = (ep.get("entryBasis") or A.get("entryBasis") or "value buy-below").lower()
-                tbasis = (ep.get("targetBasis") or "intrinsic value").lower()
-                if cheap_first:
-                    tbasis = "no longer cheap: P/E and P/B back at the S&P 500's, below estimated value"
-                rec = f"{v}, confidence {A.get('confidence')}: buy at or below {money(X)} ({basis}), sell at {money(target)} ({tbasis}), stop {money(stop)}"
-                rec += "; the stop is disaster insurance only, set beyond the stock's worst past fall" if value else "; chart-based entry, not a value bargain: keep it small"
-                wait = ""
-                nd = A.get("newsDrop")
-                if nd and nd.get("date"):
-                    until = (date.fromisoformat(nd["date"]) + timedelta(days=21)).isoformat()
-                    rec += f"; fell {abs(num(nd.get('pct')) or 0) * 100:.0f}% on {nd['date']} on news: wait until about {until} before confirming"
-                    wait = f"; wait until about {until} after the news drop"
-                checks = ", ".join(([check] if check else []) + ["earnings, filings and news"])
-                rec += f"; check {checks} before confirming."
-                hold = int((months or 6) * 30)
-                review_txt = f", review_days: {int(review * 30)}" if review and review * 30 < hold else ""
-                cond = f"  - {{type: price, op: \"<=\", value: {X}}}\n"
-                if value:
-                    cond += "  - {type: price_vs, ref: support20, op: \">=\", pct: 2}\n"
-                expires = (date.fromisoformat(today) + timedelta(days=90)).isoformat()
-                y = (f"id: {t}-forensic-{today}\nsource: forensic\nticker: {t}\naction: BUY\nconditions:\n{cond}"
-                     f"exit_plan: {{stop: {{price: {stop}}}, target: {{price: {target}}}, max_hold_days: {hold}{review_txt}}}\n"
-                     f"recommendation: {_yaml_str(rec)}\nreport_date: {today}\nexpires: {expires}\n")
-                if final.get("dataThrough"):
-                    y += f"data_through: {final['dataThrough']}\n"
-                sn = final.get("staleNumbers")
-                if sn:  # the bot holds any buy until a report includes these results, and queues the re-run itself
-                    y += f"earnings_last: '{sn['resultsFiled']}'\n"
-                ok, err = _send_checked(y, {"kind": "buy", "id": f"{t}-forensic-{today}", "entry": X, "target": target},
-                                        f"{t}: trigger not recorded",
-                                        f"The new {t} trigger (buy at or below {money(X)}, sell {money(target)}, stop {money(stop)}) "
-                                        f"did not reach the paper bot. Any older {t} trigger is still in place.")
-                if ok and sn:
-                    days = (today_ny() - date.fromisoformat(sn["resultsFiled"])).days
-                    auto = days <= 10  # the bot's automatic re-run list covers releases from the last 10 days
-                    held_alert = alert(f"{t}: trigger set but on hold",
-                          f"This {t} report uses figures through {sn['dataThrough']}, but {t} filed newer results on "
-                          f"{sn['resultsFiled']} that Webull hasn't loaded yet. The bot won't buy until a report has them. "
-                          + ("A fresh analysis runs automatically once Webull has the new quarter."
-                             if auto else "Run Forensic Analysis again once Webull shows the new quarter (the automatic re-run only "
-                                          "covers releases from the last 10 days)."), priority="default")
-                if ok:
-                    tstop = (f"review at {int(review)} months, sell at {int(months or 6)}" if review_txt
-                             else f"{int(months or 6)}-month time stop")
-                    entry = f"buy at or below {money(X)} ({basis}); sell at {money(target)}; stop {money(stop)}; {tstop}{wait}"
-                    if check:
-                        entry += f"; check {check} first"
-                    if sn:
-                        entry += f"; on hold until a report includes the results filed {sn['resultsFiled']}"
-                        if not held_alert:
-                            entry += " (the phone alert about this failed to send)"
-                    result = {"trigger": {"id": f"{t}-forensic-{today}", "entry": entry + (f" ({err})" if err else "")}}
+                why = None
+                if dhold:
+                    why = "data hold: " + dhold["note"].split("No paper-bot trigger: ", 1)[-1].rstrip(".")
+                elif X is None or stop is None or target is None:
+                    why = "the report has no complete entry, stop and target"
+                elif target < X * 1.1:
+                    why = f"the target {money(target)} is less than 10% above the entry {money(X)}"
+                elif stop >= X:
+                    why = f"the stop {money(stop)} is not below the entry {money(X)}"
+                elif price and (price - X) / price > 0.20:
+                    why = f"the entry {money(X)} is more than 20% under the current price {money(price)}"
+                if why:
+                    result = {"triggerNote": f"No trigger sent: {why}."}
+                    if dhold:
+                        older = [x for x in _bot_file("triggers.yml").get("triggers") or []
+                                 if x.get("ticker") == t and x.get("source") == "forensic" and x.get("status") in ("active", "awaiting_confirm")]
+                        tail = (f" An older trigger ({older[0].get('id')}) is still active and may rest on the same numbers."
+                                if older else " No older trigger is active for it.")
+                        unv = dhold.get("unverified") or []
+                        if unv:
+                            first = unv[0].split(" (")[0]
+                            title = f"{t} can not verify {first}" + (f" (+{len(unv) - 1} more)" if len(unv) > 1 else "")
+                        else:
+                            title = f"{t}: no trigger (data check)"
+                        if not alert(title, f"{t} was held back, no trigger sent: {dhold['note'].split('No paper-bot trigger: ', 1)[-1]}"
+                                     f"{tail} Ask Claude to check it."):
+                            result["triggerNote"] += " The phone alert about this failed to send."
                 else:
-                    result = {"triggerNote": f"{err}."}
+                    X, stop, target = round(X, 2), round(stop, 2), round(target, 2)
+                    value = ep.get("entryType", "value") == "value"
+                    basis = (ep.get("entryBasis") or A.get("entryBasis") or "value buy-below").lower()
+                    tbasis = (ep.get("targetBasis") or "intrinsic value").lower()
+                    if cheap_first:
+                        tbasis = "no longer cheap: P/E and P/B back at the S&P 500's, below estimated value"
+                    rec = f"{v}, confidence {A.get('confidence')}: buy at or below {money(X)} ({basis}), sell at {money(target)} ({tbasis}), stop {money(stop)}"
+                    rec += "; the stop is disaster insurance only, set beyond the stock's worst past fall" if value else "; chart-based entry, not a value bargain: keep it small"
+                    wait = ""
+                    nd = A.get("newsDrop")
+                    if nd and nd.get("date"):
+                        until = (date.fromisoformat(nd["date"]) + timedelta(days=21)).isoformat()
+                        rec += f"; fell {abs(num(nd.get('pct')) or 0) * 100:.0f}% on {nd['date']} on news: wait until about {until} before confirming"
+                        wait = f"; wait until about {until} after the news drop"
+                    checks = ", ".join(([check] if check else []) + ["earnings, filings and news"])
+                    rec += f"; check {checks} before confirming."
+                    hold = int((months or 6) * 30)
+                    review_txt = f", review_days: {int(review * 30)}" if review and review * 30 < hold else ""
+                    cond = f"  - {{type: price, op: \"<=\", value: {X}}}\n"
+                    if value:
+                        cond += "  - {type: price_vs, ref: support20, op: \">=\", pct: 2}\n"
+                    expires = (date.fromisoformat(today) + timedelta(days=90)).isoformat()
+                    y = (f"id: {t}-forensic-{today}\nsource: forensic\nticker: {t}\naction: BUY\nconditions:\n{cond}"
+                         f"exit_plan: {{stop: {{price: {stop}}}, target: {{price: {target}}}, max_hold_days: {hold}{review_txt}}}\n"
+                         f"recommendation: {_yaml_str(rec)}\nreport_date: {today}\nexpires: {expires}\n")
+                    if final.get("dataThrough"):
+                        y += f"data_through: {final['dataThrough']}\n"
+                    sn = final.get("staleNumbers")
+                    if sn:  # the bot holds any buy until a report includes these results, and queues the re-run itself
+                        y += f"earnings_last: '{sn['resultsFiled']}'\n"
+                    ok, err = _send_checked(y, {"kind": "buy", "id": f"{t}-forensic-{today}", "entry": X, "target": target},
+                                            f"{t}: trigger not recorded",
+                                            f"The new {t} trigger (buy at or below {money(X)}, sell {money(target)}, stop {money(stop)}) "
+                                            f"did not reach the paper bot. Any older {t} trigger is still in place.")
+                    if ok and sn:
+                        days = (today_ny() - date.fromisoformat(sn["resultsFiled"])).days
+                        auto = days <= 10  # the bot's automatic re-run list covers releases from the last 10 days
+                        held_alert = alert(f"{t}: trigger set but on hold",
+                              f"This {t} report uses figures through {sn['dataThrough']}, but {t} filed newer results on "
+                              f"{sn['resultsFiled']} that Webull hasn't loaded yet. The bot won't buy until a report has them. "
+                              + ("A fresh analysis runs automatically once Webull has the new quarter."
+                                 if auto else "Run Forensic Analysis again once Webull shows the new quarter (the automatic re-run only "
+                                              "covers releases from the last 10 days)."), priority="default")
+                    if ok:
+                        tstop = (f"review at {int(review)} months, sell at {int(months or 6)}" if review_txt
+                                 else f"{int(months or 6)}-month time stop")
+                        entry = f"buy at or below {money(X)} ({basis}); sell at {money(target)}; stop {money(stop)}; {tstop}{wait}"
+                        if check:
+                            entry += f"; check {check} first"
+                        if sn:
+                            entry += f"; on hold until a report includes the results filed {sn['resultsFiled']}"
+                            if not held_alert:
+                                entry += " (the phone alert about this failed to send)"
+                        result = {"trigger": {"id": f"{t}-forensic-{today}", "entry": entry + (f" ({err})" if err else "")}}
+                    else:
+                        result = {"triggerNote": f"{err}."}
     except Exception as e:
         result = {"triggerNote": f"No trigger sent: the paper bot could not be reached ({str(e)[:150]})."}
     final.update(result)
