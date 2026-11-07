@@ -477,7 +477,7 @@ ANNUAL_TAGS = {
     "operating_income": ["OperatingIncomeLoss"],
     "net_income": ["NetIncomeLoss"],
     "cfo": ["NetCashProvidedByUsedInOperatingActivities"],
-    "capex": ["PaymentsToAcquirePropertyPlantAndEquipment"],
+    "capex": ["PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireOtherPropertyPlantAndEquipment"],  # 2nd: e.g. Lilly
     "acquisitions": ["PaymentsToAcquireBusinessesNetOfCashAcquired"],
     # extra lines for settling a Webull-vs-SEC mismatch (the cloud helper can't reach the SEC, so they travel here)
     "revenue_total": ["Revenues"],
@@ -485,12 +485,13 @@ ANNUAL_TAGS = {
     "gross_profit": ["GrossProfit"],
     "operating_expenses": ["OperatingExpenses", "CostsAndExpenses"],
     "sga": ["SellingGeneralAndAdministrativeExpense"],
-    "research_development": ["ResearchAndDevelopmentExpense"],
+    "research_development": ["ResearchAndDevelopmentExpense", "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost"],
     "restructuring": ["RestructuringCharges"],
     "impairment": ["GoodwillImpairmentLoss", "AssetImpairmentCharges"],
     "interest_expense": ["InterestExpense", "InterestExpenseNonoperating"],
     "pretax_income": ["IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
                       "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments"],
+    "nonoperating": ["NonoperatingIncomeExpense"],
 }
 
 # foreign filers using international accounting rules (IFRS) tag their 20-F/40-F figures with these names instead
@@ -598,11 +599,20 @@ try:
         built = [y for y, gp in an["gross_profit"].items() if y not in oi and an["sga"].get(y) is not None] if tax_name == "us-gaap" else []
         for y in built:
             oi[y] = round2(an["gross_profit"][y] - an["sga"][y] - (rd.get(y) or 0))
+        # no gross-profit line either (e.g. Lilly): profit before tax minus the filed non-operating line
+        nonop = an.get("nonoperating") or {}
+        built2 = [y for y, pt in an["pretax_income"].items() if y not in oi and nonop.get(y) is not None] if tax_name == "us-gaap" else []
+        for y in built2:
+            oi[y] = round2(an["pretax_income"][y] - nonop[y])
         an["operating_income"] = dict(sorted(oi.items(), reverse=True))
         if built:
             an["operating_income_basis"] = ("built from SEC gross profit minus selling and admin" + (" minus R&D" if rd else "")
                                             + " for fiscal years ending " + ", ".join(sorted(built, reverse=True))
                                             + " (no operating-income line filed)")
+        if built2:
+            an["operating_income_basis"] = ((an["operating_income_basis"] + "; ") if built else "") + (
+                "built from SEC profit before tax minus non-operating income for fiscal years ending "
+                + ", ".join(sorted(built2, reverse=True)) + " (no operating-income or gross-profit line filed)")
         packet["annual"]["note"] = (f"Fiscal years from {FOREIGN_FORM or '10-K'} XBRL ({tax_name}), in {cur_unit}, newest first. "
                                     "capex and acquisitions are cash paid (positive).")
         packet["annual"]["currency"] = cur_unit
