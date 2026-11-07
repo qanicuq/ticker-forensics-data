@@ -933,7 +933,9 @@ def cmd_trigger(final_path, ticker, check=None):
                 target_is_value = bool(cheap_first) or not ep.get("entryType") or "estimated value" in str(ep.get("targetBasis") or "").lower()
                 franchise = bool((A.get("value") or {}).get("franchise"))
                 tgt = round(target, 2) if target is not None else None
-                y = f"id: {t}-recheck-{today}\nsource: forensic\nticker: {t}\naction: RECHECK\ntarget: {tgt if tgt is not None else 'null'}\ntarget_is_value: {str(target_is_value).lower()}\nfranchise: {str(franchise).lower()}\n"
+                wd = num(A.get("worstDrop"))
+                stop_pct = round(max(0.25, wd + 0.05), 4) if wd is not None else 0.25  # same disaster-stop rule as the engine
+                y = f"id: {t}-recheck-{today}\nsource: forensic\nticker: {t}\naction: RECHECK\ntarget: {tgt if tgt is not None else 'null'}\ntarget_is_value: {str(target_is_value).lower()}\nfranchise: {str(franchise).lower()}\nstop_pct: {stop_pct}\n"
                 ok, err = _send_checked(y, {"kind": "recheck", "ticker": t}, f"{t}: re-check not recorded", f"The fresh {t} analysis could not reach the paper bot. The held {t} position is still waiting at its target.")
                 result = {"trigger": {"id": f"{t}-recheck-{today}", "entry": "Re-check sent for the held position at its target" + (f" ({err})" if err else "")}} if ok else {"triggerNote": f"{err}."}
             else:
