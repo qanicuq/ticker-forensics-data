@@ -212,15 +212,21 @@ def cover_shares_from_xml(xml_bytes):
     total = [v for c, v in vals.items() if ctx[c].find(f"{X}entity/{X}segment") is None]  # a figure for all classes
     return (total[0] if total else sum(vals.values())), newest
 
+NEWEST_REPORT = None  # the newest 10-Q or 10-K: {"form", "accn", "end"}, from the same submissions call
+
 def foreign_annual_form():
     """'20-F' or '40-F' when the company files as a foreign private issuer (no 10-Q figures), else None."""
+    global NEWEST_REPORT
     from edgar import Company
     import requests
     cik = int(Company(TICKER).cik)
     email = os.environ.get("SEC_IDENTITY_EMAIL", "user@example.com")
     r = requests.get(f"https://data.sec.gov/submissions/CIK{cik:010d}.json", headers={"User-Agent": f"qanicuq {email}"}, timeout=30)
     r.raise_for_status()
-    forms = r.json().get("filings", {}).get("recent", {}).get("form", [])
+    rec = r.json().get("filings", {}).get("recent", {})
+    forms = rec.get("form", [])
+    NEWEST_REPORT = next(({"form": f, "accn": a, "end": d} for f, a, d in
+                          zip(forms, rec.get("accessionNumber", []), rec.get("reportDate", [])) if f in ("10-Q", "10-K") and d), None)
     annual = next((f for f in forms if f in ("10-K", "20-F", "40-F")), None)
     return annual if annual in ("20-F", "40-F") else None
 
@@ -259,6 +265,51 @@ def last_4_quarters(entries):
     if span > 300:  # gap in the quarters, don't trust the sum
         return None
     return [v for _, v in ordered]
+
+def filing_durations(accn, tags):
+    """{tag: {(start, end): value}} for whole-company figures covering a period, read from a filing's own XBRL file."""
+    import requests
+    import xml.etree.ElementTree as ET
+    from edgar import Company
+    X = "{http://www.xbrl.org/2003/instance}"
+    cik = int(Company(TICKER).cik)
+    h = {"User-Agent": f"qanicuq {os.environ.get('SEC_IDENTITY_EMAIL', 'user@example.com')}"}
+    base = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accn.replace('-', '')}"
+    r = requests.get(f"{base}/index.json", headers=h, timeout=30)
+    r.raise_for_status()
+    inst = next(i["name"] for i in r.json()["directory"]["item"] if i["name"].endswith("_htm.xml"))
+    r = requests.get(f"{base}/{inst}", headers=h, timeout=60)
+    r.raise_for_status()
+    root = ET.fromstring(r.content)
+    span = {}
+    for c in root.iter(X + "context"):
+        s, e = c.find(f"{X}period/{X}startDate"), c.find(f"{X}period/{X}endDate")
+        if s is not None and e is not None and c.find(f"{X}entity/{X}segment") is None:
+            span[c.get("id")] = (s.text.strip(), e.text.strip())
+    out = {t: {} for t in tags}
+    for el in root:
+        t = el.tag.split("}")[-1]
+        if t in out and el.get("contextRef") in span and (el.text or "").strip():
+            out[t].setdefault(span[el.get("contextRef")], float(el.text))
+    return out
+
+def ttm_from_filing(figs, form, end, annual_rows):
+    """12-month figure ending `end`: a 10-K's full year, or a 10-Q's last full year + this year to date - last year
+    to date. SEC's company-facts feed can lag the filings: for OGE (Nov 2026) it stopped at the Q1 10-Q while the
+    Q3 10-Q was filed, so the P/E and revenue checks compared yfinance's latest 12 months with an older 12 months."""
+    d = lambda a, b: (pd.Timestamp(b) - pd.Timestamp(a)).days
+    if form == "10-K":
+        return next((v for (s, e), v in figs.items() if e == end and 350 <= d(s, e) <= 380), None)
+    ytd = max(((s, e) for (s, e) in figs if e == end), key=lambda p: d(*p), default=None)  # longest span to date
+    if ytd is None:
+        return None
+    prior = next((v for (s, e), v in figs.items() if 358 <= d(e, end) <= 372 and abs(d(s, e) - d(*ytd)) <= 7), None)
+    fy_end = str((pd.Timestamp(ytd[0]) - pd.Timedelta(days=1)).date())
+    fy = next((e["val"] for e in annual_rows if e.get("end") == fy_end and "start" in e and 350 <= days(e) <= 380), None)
+    fy = fy if fy is not None else next((v for (s, e), v in figs.items() if e == fy_end and 350 <= d(s, e) <= 380), None)
+    if prior is None or fy is None:
+        return None
+    return fy + figs[ytd] - prior
 
 def pick_revenue_tag(gaap):
     tags = [  # "Revenues" (the income statement's total) wins a tie: the contract-revenue tag can leave out
@@ -327,17 +378,44 @@ try:
     eps_tag = max(("EarningsPerShareDiluted", "IncomeLossFromContinuingOperationsPerDilutedShare"),
                   key=lambda t: max((e["end"] for e in eps_rows(t)), default=""))
     eps = last_4_quarters(eps_rows(eps_tag))
-    if eps and last_close and sum(eps) > 0:
-        sec_pe = round2(last_close / sum(eps))
-    elif eps and sum(eps) <= 0:
-        sec_pe = "negative"
-    elif not eps:
-        packet["errors"].append("sec facts: fewer than 4 quarters of diluted EPS")
+    eps_sum = sum(eps) if eps else None
     rev_tag = pick_revenue_tag(gaap)
-    if rev_tag:
-        rev = last_4_quarters(gaap[rev_tag]["units"]["USD"])
-        if rev:
-            sec_rev_sum = round2(sum(rev))
+    rev_rows = gaap[rev_tag]["units"]["USD"] if rev_tag else []
+    rev = last_4_quarters(rev_rows) if rev_tag else None
+    rev_sum = sum(rev) if rev else None
+    # SEC's company-facts feed can stop before the newest 10-Q/10-K: then read that filing's own figures
+    feed_end = lambda rows: max((e["end"] for e in rows if "start" in e), default="")
+    nr = NEWEST_REPORT
+    behind = [(t, rows) for t, rows in ((eps_tag, eps_rows(eps_tag)), (rev_tag, rev_rows))
+              if t and nr and feed_end(rows) < nr["end"]]
+    if behind:
+        try:
+            figs = filing_durations(nr["accn"], [t for t, _ in behind])
+            for t, rows in behind:
+                v = ttm_from_filing(figs[t], nr["form"], nr["end"], rows)
+                if t == eps_tag:
+                    eps_sum = v
+                else:
+                    rev_sum = v
+                packet["notes"].append(
+                    f"SEC's data feed for {t} ends {feed_end(rows) or 'nowhere'}, before the newest {nr['form']} (period ending "
+                    f"{nr['end']}); the 12 months ending {nr['end']} were read from that filing's own XBRL file"
+                    + ("." if v is not None else ", but could not be worked out, so this check was skipped."))
+        except Exception as e:
+            packet["errors"].append(f"sec filing figures: {type(e).__name__}: {str(e)[:120]}")
+            for t, _ in behind:
+                if t == eps_tag:
+                    eps_sum = None
+                else:
+                    rev_sum = None
+    if eps_sum is not None and last_close and eps_sum > 0:
+        sec_pe = round2(last_close / eps_sum)
+    elif eps_sum is not None and eps_sum <= 0:
+        sec_pe = "negative"
+    elif eps_sum is None and not any(t == eps_tag for t, _ in behind):
+        packet["errors"].append("sec facts: fewer than 4 quarters of diluted EPS")
+    if rev_sum is not None:
+        sec_rev_sum = round2(rev_sum)
 except StopIteration:
     pass
 except Exception as e:
