@@ -483,6 +483,13 @@ def cmd_sec(job_path, packet_path, engine_path=None):
                         "link, and prefer company, SEC, wire-service or major-outlet sources over aggregators.")
     out["judge"].append("SEC CHECK WORDING: describe the SEC cross-check in the summary only with this sentence, word for word, "
                         f"and claim nothing beyond it: \"{out['valuationSentence']}\"")
+    rel = pk.get("earnings_release") or {}
+    if rel.get("text"):
+        out["judge"].append(f"EARNINGS RELEASE: the packet's earnings_release.text is the company's own results release (8-K filed "
+                            f"{rel.get('filed')}). Before tagging the surprise, read the reported (GAAP) and adjusted (non-GAAP) EPS "
+                            "there and compare like with like: GAAP actual with a GAAP estimate, adjusted actual with an adjusted "
+                            "estimate. Put the release's figures in the surprise note. Never send the user to check the release "
+                            "themselves; it is already here.")
     out["judge"].append("EARNINGS SURPRISE: if two sources give a different actual EPS or estimate that would change the "
                         "surprise tag (e.g. Webull shows a miss while the company or a news report shows a beat on adjusted EPS), set "
                         "patch \"surprise\" to {\"tag\": \"Sources disagree\", \"note\": both sets of numbers with their sources}. "
@@ -534,7 +541,7 @@ def _full_only_items(A, P):
     if tag == "Sources disagree":  # a disputed surprise counts as neither good nor bad
         sitem = {"item": SURPRISE_ITEM, "status": "you",
                  "note": f"Unknown: sources disagree. {sp.get('note') or ''}".strip()
-                         + " Check the company's own earnings release before counting it either way (Dreman: good surprises "
+                         + " Counted as neither good nor bad until the estimate's basis (GAAP or adjusted) matches the actual (Dreman: good surprises "
                            "tend to lift out-of-favor stocks for several quarters; bad surprises hurt favorites most.)"}
     elif tag in ("Positive", "Negative", "In line"):
         sitem = {"item": SURPRISE_ITEM, "status": "warn" if tag == "Negative" else "ok",
@@ -747,7 +754,11 @@ def cmd_finalize(job_path, patch_path, sec_path, engine_path=None):
     added = P.get("addMissing") or []
     if not S["packet"] and not any(str(m).startswith("SEC data packet") for m in added):
         added = added + ["SEC data packet"]
-    missing = list(dict.fromkeys((E.get("missing") or []) + S.get("missing", []) + added))
+    missing = []
+    for m in (E.get("missing") or []) + S.get("missing", []) + added:
+        # one line per item: "Earnings alert (Webull returned none)" repeats "earnings alert" (SPCX, Nov 6 2026)
+        if str(m).split(" (")[0].strip().lower() not in {str(x).split(" (")[0].strip().lower() for x in missing}:
+            missing.append(m)
     filings = S["filings"] or (P.get("filings") or [])[:5]
     t = now_ms()
     final = {"status": "done", "step": "Done", "finishedAt": t, "updatedAt": t, "error": {"__delete__": True},

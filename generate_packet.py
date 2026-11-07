@@ -46,16 +46,19 @@ try:
     set_identity(f"qanicuq <{email}>")
     company = Company(TICKER)
     financials = company.get_financials()
-    packet["fundamentals"] = {
-        "revenue": round2(financials.get_revenue()),
-        "net_income": round2(financials.get_net_income()),
-        "eps": round2(financials.get_eps()) if hasattr(financials, "get_eps") else None,
-        "total_debt": round2(financials.get_total_debt()) if hasattr(financials, "get_total_debt") else None,
-        "cash": round2(financials.get_cash()) if hasattr(financials, "get_cash") else None,
-        "free_cash_flow": round2(financials.get_free_cash_flow()) if hasattr(financials, "get_free_cash_flow") else None,
-        "shares_outstanding": round2(financials.get_shares_outstanding()) if hasattr(financials, "get_shares_outstanding") else None,
-        "note": "latest available from 10-K/10-Q via edgartools",
-    }
+    if financials is None:  # no 10-K yet (e.g. a recent IPO such as SPCX): skip these, keep the filings below
+        packet["notes"].append("edgartools: no annual report (10-K) on file yet, so its fundamentals are skipped")
+    else:
+        packet["fundamentals"] = {
+            "revenue": round2(financials.get_revenue()),
+            "net_income": round2(financials.get_net_income()),
+            "eps": round2(financials.get_eps()) if hasattr(financials, "get_eps") else None,
+            "total_debt": round2(financials.get_total_debt()) if hasattr(financials, "get_total_debt") else None,
+            "cash": round2(financials.get_cash()) if hasattr(financials, "get_cash") else None,
+            "free_cash_flow": round2(financials.get_free_cash_flow()) if hasattr(financials, "get_free_cash_flow") else None,
+            "shares_outstanding": round2(financials.get_shares_outstanding()) if hasattr(financials, "get_shares_outstanding") else None,
+            "note": "latest available from 10-K/10-Q via edgartools",
+        }
     filings = company.get_filings()[:5]
     packet["filings"] = [
         {
@@ -270,7 +273,8 @@ try:
             if (datetime.utcnow() - datetime.fromisoformat(newest["end"])).days <= 400:
                 total_shares = newest["val"]
                 packet["sec_shares_basis"] = (f"diluted weighted-average shares for the period ending {newest['end']} "
-                                              f"(no undivided shares-outstanding figure filed since {stale_end or 'never'})")
+                                              + (f"(no undivided shares-outstanding figure filed since {stale_end})" if stale_end
+                                                 else "(no undivided shares-outstanding figure filed)"))
     if total_shares is None:
         packet["errors"].append(f"sec facts: newest SEC share count is from {stale_end}, too old to check market cap"
                                 if stale_end else "sec facts: no shares-outstanding figure filed")

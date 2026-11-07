@@ -550,7 +550,7 @@ function engine(D){
     {item:"Edge: why is the market wrong, in one sentence?",status:"you",note:O.neglected?"Neglected: few analysts or low institutional ownership.":ret(126)!=null&&ret(126)<-0.25?`Sold off ${pc(-ret(126))} in six months.`:"Write it down before buying."},
     {item:"Thesis-break condition written down",status:"auto",note:exitPlan.thesisBreak[1]},
     {item:"Downside sized: loss to bear value within 1–2% of the account",status:"auto",note:`Bear value $${fmt(V.bear)} (${V.bearBasis.toLowerCase()}). See sizing below.`},
-    {item:"Binary event ahead",status:daysToE!=null&&daysToE>=0&&daysToE<=30?"warn":"ok",note:nextE?`Earnings ${nextE}${daysToE!=null&&daysToE>=0?` (in ${daysToE} days)`:""}, Webull's date: it may be an estimate until the company announces it.`:"No earnings date found."},
+    {item:"Binary event ahead",status:!nextE?"you":daysToE!=null&&daysToE>=0&&daysToE<=30?"warn":"ok",note:nextE?`Earnings ${nextE}${daysToE!=null&&daysToE>=0?` (in ${daysToE} days)`:""}, Webull's date: it may be an estimate until the company announces it.`:"No earnings date found. Look up the next earnings date before buying: results could be days away."},
     {item:"Liquidity: could you exit in a few days?",status:advDollar<1e6?"warn":"ok",note:`About $${fmtBig(advDollar)} trades a day.`},
     {item:"Catalyst: what makes the market see the value?",status:"you",note:"Full analysis looks for one in filings and news."},
     {item:"Price behaviour: has the selling stopped?",status:priceScore>=75?"ok":"warn",note:priceState+"."},
