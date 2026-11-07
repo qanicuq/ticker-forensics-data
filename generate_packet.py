@@ -576,7 +576,68 @@ try:
 except Exception as e:
     packet["errors"].append(f"sec submissions: {type(e).__name__}: {str(e)[:120]}")
 
+def fill_newest_annual(facts, sub):
+    """SEC's company-facts feed can miss a whole annual report: Wipro's 20-F for the year to March 2026 (filed June 2
+    2026) was still absent on Nov 7 2026, so the report held as 'newest 20-F figures over 13 months old'. When the
+    filing list shows a newer 10-K/20-F/40-F than the feed's newest full year, read that filing's own XBRL file and add
+    its full-year figures to the facts. Returns a note when it added any, else None."""
+    import requests
+    rec = sub.get("filings", {}).get("recent", {})
+    rows = [r for r in zip(rec.get("form", []), rec.get("reportDate", []), rec.get("filingDate", []),
+                           rec.get("accessionNumber", [])) if r[0] in ("10-K", "20-F", "40-F") and r[1]]
+    if not rows:
+        return None
+    form, end, filed, accn = max(rows, key=lambda r: r[1])
+    have = [e["end"] for tax, tm in (("us-gaap", ANNUAL_TAGS), ("ifrs-full", IFRS_TAGS)) for tag in tm["revenue"]
+            for es in facts.get(tax, {}).get(tag, {}).get("units", {}).values() for e in es
+            if e.get("form") in ANNUAL_FORMS and "start" in e]
+    if have and max(have) >= end:
+        return None
+    h = {"User-Agent": f"qanicuq {os.environ.get('SEC_IDENTITY_EMAIL', 'user@example.com')}"}
+    base = f"https://www.sec.gov/Archives/edgar/data/{int(sub['cik'])}/{accn.replace('-', '')}"
+    r = requests.get(f"{base}/index.json", headers=h, timeout=30)
+    r.raise_for_status()
+    inst = next(i["name"] for i in r.json()["directory"]["item"] if i["name"].endswith("_htm.xml"))
+    r = requests.get(f"{base}/{inst}", headers=h, timeout=120)
+    r.raise_for_status()
+    return fill_from_xml(facts, r.content, form, end, filed, accn)
+
+def fill_from_xml(facts, xml_bytes, form, end, filed, accn):
+    import xml.etree.ElementTree as ET
+    X = "{http://www.xbrl.org/2003/instance}"
+    root = ET.fromstring(xml_bytes)
+    starts = {}  # whole-company contexts (no segment) covering a period that ends on the report date
+    for c in root.iter(X + "context"):
+        s, e = c.find(f"{X}period/{X}startDate"), c.find(f"{X}period/{X}endDate")
+        if c.find(f"{X}entity/{X}segment") is None and s is not None and e is not None and e.text.strip() == end:
+            starts[c.get("id")] = s.text.strip()
+    units = {u.get("id"): u.find(X + "measure").text.split(":")[-1] for u in root.iter(X + "unit") if u.find(X + "measure") is not None}
+    wanted = {"us-gaap": {t for ts in ANNUAL_TAGS.values() for t in ts}, "ifrs-full": {t for ts in IFRS_TAGS.values() for t in ts}}
+    seen = set()
+    for el in root:
+        if not el.tag.startswith("{") or not (el.text or "").strip():
+            continue
+        ns, name = el.tag[1:].split("}", 1)
+        tax = "ifrs-full" if ns.endswith("/ifrs-full") else "us-gaap" if "fasb.org/us-gaap" in ns else None
+        cid, unit = el.get("contextRef"), units.get(el.get("unitRef"))
+        if tax is None or name not in wanted[tax] or cid not in starts or unit is None or (tax, name, unit, starts[cid]) in seen:
+            continue
+        seen.add((tax, name, unit, starts[cid]))
+        facts.setdefault(tax, {}).setdefault(name, {}).setdefault("units", {}).setdefault(unit, []).append(
+            {"start": starts[cid], "end": end, "val": float(el.text), "form": form, "filed": filed, "accn": accn})
+    if not seen:
+        return None
+    return f"Fiscal year ending {end} read from the {form} filed {filed} itself (SEC's company-facts feed did not have it yet)."
+
 try:
+    _sub_ok = globals().get("_sub")
+    if facts and _sub_ok:
+        try:
+            _filled = fill_newest_annual(facts, _sub_ok)
+            if _filled:
+                packet["notes"].append(_filled)
+        except Exception as e:
+            packet["errors"].append(f"newest annual filing: {type(e).__name__}: {str(e)[:120]}")
     tax_name, tags_map = "us-gaap", ANNUAL_TAGS
     if facts and FOREIGN_FORM and not report_currency(facts.get("us-gaap", {}), ANNUAL_TAGS["revenue"]):
         tax_name, tags_map = "ifrs-full", IFRS_TAGS
