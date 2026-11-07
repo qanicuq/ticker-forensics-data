@@ -885,7 +885,14 @@ try:
         er_filed, er_accn, er_href_pre = foreign_results_6k(er_cik, er_forms, er_dates, er_accns, er_cutoff)
         er_kind = "6-K results announcement"
     if not er_filed:
-        packet["errors"].append(f"earnings release: no {er_kind} filed in the last 120 days")
+        er_msg = f"earnings release: no {er_kind} filed in the last 120 days"
+        # a company with a pending merger often stops issuing earnings releases (e.g. IMXI after its Western Union deal)
+        er_merger = next((s for s in (packet.get("governance") or {}).get("special_situations") or []
+                          if s.get("form") in ("DEFM14A", "PREM14A")), None)
+        if er_merger:
+            er_msg += (f" (merger proxy {er_merger['form']} filed {er_merger['date']}: companies with a pending merger"
+                       f" often stop issuing earnings releases, so this may be expected)")
+        packet["errors"].append(er_msg)
     else:
         er_accn_nd = er_accn.replace("-", "")
         er_index_url = f"https://www.sec.gov/Archives/edgar/data/{er_cik}/{er_accn_nd}/{er_accn}-index.htm"
