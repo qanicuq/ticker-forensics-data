@@ -76,6 +76,23 @@ def gh(args, body=None):
     return p.returncode == 0, (p.stdout if p.returncode == 0 else (p.stderr or p.stdout).strip())
 
 
+def stale_scripts():
+    """None when this script (and eng/engine.js, if the helper saved one) match GitHub main; else a plain reason."""
+    copies = [(os.path.abspath(__file__), "worker/forensics_tools.py", "the worker script")]
+    if os.path.exists("eng/engine.js"):
+        copies.append(("eng/engine.js", "engine/engine.js", "the value engine"))
+    old = []
+    for local, path, label in copies:
+        ok, text = gh(["api", f"repos/{REPO_DATA}/contents/{path}", "-H", "Accept: application/vnd.github.raw"])
+        if not ok:
+            return "GitHub could not be reached to check the helper's scripts"
+        with open(local) as f:
+            if f.read() != text:
+                old.append(label)
+    return (" and ".join(old) + " in the artifact database " + ("differ" if len(old) > 1 else "differs") + " from GitHub; "
+            "copy GitHub's versions to the system/engine record, then re-run") if old else None
+
+
 def is_access_error(text):
     t = text.lower()
     return any(k in t for k in ("not enabled", "403", "404", "401", "permission", "forbidden", "not found", "authentication"))
@@ -206,6 +223,13 @@ def cmd_sec(job_path, packet_path, engine_path=None):
     out = {"packet": False, "add": {"redFlags": [], "walkAway": [], "risks": [], "valueNotes": []},
            "disagreements": 0, "allWithin2": False, "compared": [], "special": None, "filings": [],
            "judge": [], "valuationSentence": "", "missing": [], "serious": [], "unverified": []}
+
+    # the helper runs copies of these scripts saved in the artifact database; if they are older than GitHub, the newest
+    # checks are missing, so nothing from this run may reach the paper bot (Nov 6 2026: HOPE and nine others ran on
+    # copies three hours old)
+    stale = stale_scripts()
+    if stale:
+        out["unverified"].append(f"that this run used the current checks ({stale})")
 
     pk = None
     if packet_path and packet_path != "-":
