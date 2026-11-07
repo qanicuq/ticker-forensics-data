@@ -321,7 +321,12 @@ try:
         sec_market_cap = round2(total_shares * last_close)
     if FOREIGN_FORM:  # no 10-Q figures: the quarterly P/E and 12-month revenue checks don't apply
         raise StopIteration
-    eps = last_4_quarters(gaap.get("EarningsPerShareDiluted", {}).get("units", {}).get("USD/shares", []))
+    # some companies switch EPS tags between filings (BB's fiscal-2027 10-Qs use the continuing-operations tag only):
+    # read whichever tag has the newest period, preferring EarningsPerShareDiluted on a tie
+    eps_rows = lambda t: gaap.get(t, {}).get("units", {}).get("USD/shares", [])
+    eps_tag = max(("EarningsPerShareDiluted", "IncomeLossFromContinuingOperationsPerDilutedShare"),
+                  key=lambda t: max((e["end"] for e in eps_rows(t)), default=""))
+    eps = last_4_quarters(eps_rows(eps_tag))
     if eps and last_close and sum(eps) > 0:
         sec_pe = round2(last_close / sum(eps))
     elif eps and sum(eps) <= 0:

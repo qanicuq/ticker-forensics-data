@@ -124,7 +124,9 @@ function engine(D){
   F.om=F.rev&&F.ebit!=null?F.ebit/F.rev:null;
   if(iQ.length>=5){ const gm=q=>N(q.gross_profit)/N(q.total_revenue); F.gm=gm(iQ[0]); F.gmY=gm(iQ[4]); }
   const dil=(a,b)=>N(a?.diluted_avg_shares)&&N(b?.diluted_avg_shares)?N(a.diluted_avg_shares)/N(b.diluted_avg_shares)-1:null;
-  F.sharesG=iQ.length>=5?dil(iQ[0],iQ[4]):dil(iA[0],iA[1]);
+  /* shares actually outstanding first: diluted averages count convertible debt as shares once profit turns positive (BB 2026) */
+  const out=(a,b)=>N(a?.common_shares_out)&&N(b?.common_shares_out)?N(a.common_shares_out)/N(b.common_shares_out)-1:null;
+  F.sharesG=(bQ.length>=5?out(bQ[0],bQ[4]):out(bA[0],bA[1]))??(iQ.length>=5?dil(iQ[0],iQ[4]):dil(iA[0],iA[1]));
 
   /* ---- Lynch category (§3.3) ---- */
   /* one-off charges (Webull's "unusual" line) are smoothed: every period carries the median charge, so one big write-down
@@ -324,7 +326,7 @@ function engine(D){
     const cfoPrev=ttm(cQ,"cfo",4), niPrev=ttm(iQ,"net_income",4);
     if(p0!=null&&p4){ const ch=p0/p4-1; const cfoG=F.cfo!=null&&cfoPrev>0?F.cfo/cfoPrev-1:null, niG=F.ni!=null&&niPrev>0?F.ni/niPrev-1:null;
       const swing=ch>0.25&&cfoG!=null&&(niG==null||cfoG>niG+0.1); metric("Days payable",`${fmt(p0,0)} days (was ${fmt(p4,0)})`,swing?"warn":"ok","Payables ÷ quarterly cost of sales. A jump that drives cash-flow growth won't repeat (CF3 swing test).");
-      if(swing) flag("Cash flow boosted by paying suppliers later","medium",`Days payable rose from ${fmt(p4,0)} to ${fmt(p0,0)} while operating cash flow grew ${pc(cfoG)} vs profit ${niG!=null?pc(niG):"n/a"}. Treat that part of cash flow as one-off.`); }
+      if(swing) flag("Cash flow boosted by paying suppliers later","medium",`Days payable rose from ${fmt(p4,0)} to ${fmt(p0,0)} while operating cash flow grew ${pc(cfoG)}${niG!=null?` vs profit ${pc(niG)}`:" (profit a year earlier was zero or negative, so there is no profit growth to compare)"}. Treat that part of cash flow as one-off.`); }
     if(q0.ta&&q4.ta){ const s0=q0.soft/q0.ta, s4=q4.soft/q4.ta; const st=s0-s4>0.05?"warn":"ok"; metric("Soft assets",`${pc(s0,1)} of assets (was ${pc(s4,1)})`,st,"Other current and long-term assets. Fast growth can hide capitalised costs (EM4).");
       if(st!=="ok") flag("Soft assets growing","medium",`'Other' assets rose from ${pc(s4,1)} to ${pc(s0,1)} of total assets in a year. Read the footnote for capitalised costs.`); }
   }
