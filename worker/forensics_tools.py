@@ -434,6 +434,14 @@ def cmd_sec(job_path, packet_path, engine_path=None):
                     "unsettled item holds the trigger and the script alerts the user. Mention how it was settled in the summary.")
     if worst_core > 10:
         out["add"]["valueNotes"].append(f"Revenue or operating income differs from SEC filings by about {worst_core:.0f}%, so the estimated value may be off by about that much.")
+    # only market cap disagrees while revenue and operating income agree: usually the SEC share count includes shares
+    # the company holds itself (e.g. RLX's treasury/ESOP shares), so keep the flag but don't cut confidence for it
+    bad = [c["figure"] for c in out["compared"] if c["pctApart"] > 5]
+    out["mcapOnly"] = (bad == ["Market cap"] and any("revenue" in c["figure"] for c in out["compared"])
+                       and any("operating income" in c["figure"] for c in out["compared"]))
+    for f in out["add"]["redFlags"] if out["mcapOnly"] else []:
+        if f["issue"] == "Data sources disagree" and f["detail"].startswith("Market cap:"):
+            f["detail"] += "; revenue and operating income agree, so this is likely a share-count difference (no confidence cut)"
     out["allWithin2"] = bool(out["compared"]) and all(c["pctApart"] <= 2 for c in out["compared"])
 
     # the risk-free rate: the report's must match the packet's daily 10-year Treasury rate unless the 8% floor on the
@@ -705,7 +713,7 @@ def cmd_finalize(job_path, patch_path, sec_path, engine_path=None):
 
     # confidence: -5 per disagreement, -10 if the packet is missing, +5 if SEC figures agree within 2%; clamp 30-85
     c = num(A.get("confidence")) or 50
-    c -= 5 * (S["disagreements"] - len(ok_items))
+    c -= 5 * (S["disagreements"] - len(ok_items) - (1 if S.get("mcapOnly") else 0))
     if not S["packet"]:
         c -= 10
     if S["allWithin2"]:
