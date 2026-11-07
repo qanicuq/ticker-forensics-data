@@ -181,6 +181,37 @@ def sec_facts():
     r.raise_for_status()
     return r.json()["facts"]
 
+def cover_shares(accn):
+    """Cover-page shares outstanding (all share classes) and its date, read from the filing's own XBRL file. SEC's
+    company-facts feed leaves out per-class cover counts, so for two-class companies (SPCX, Nike) the packet fell back
+    to the quarter's average share count, which put SPCX's market cap 8.9% low (Nov 7 2026)."""
+    import requests
+    from edgar import Company
+    cik = int(Company(TICKER).cik)
+    h = {"User-Agent": f"qanicuq {os.environ.get('SEC_IDENTITY_EMAIL', 'user@example.com')}"}
+    base = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accn.replace('-', '')}"
+    r = requests.get(f"{base}/index.json", headers=h, timeout=30)
+    r.raise_for_status()
+    inst = next(i["name"] for i in r.json()["directory"]["item"] if i["name"].endswith("_htm.xml"))
+    r = requests.get(f"{base}/{inst}", headers=h, timeout=60)
+    r.raise_for_status()
+    return cover_shares_from_xml(r.content)
+
+def cover_shares_from_xml(xml_bytes):
+    import xml.etree.ElementTree as ET
+    X = "{http://www.xbrl.org/2003/instance}"
+    root = ET.fromstring(xml_bytes)
+    ctx = {c.get("id"): c for c in root.iter(X + "context")}
+    facts = [(e.get("contextRef"), float(e.text)) for e in root
+             if e.tag.endswith("}EntityCommonStockSharesOutstanding") and (e.text or "").strip()]
+    if not facts:
+        return None, None
+    date = lambda cid: ctx[cid].find(f"{X}period/{X}instant").text
+    newest = max(date(c) for c, _ in facts)
+    vals = {c: v for c, v in facts if date(c) == newest}  # one per context: a fact repeated in the filing counts once
+    total = [v for c, v in vals.items() if ctx[c].find(f"{X}entity/{X}segment") is None]  # a figure for all classes
+    return (total[0] if total else sum(vals.values())), newest
+
 def foreign_annual_form():
     """'20-F' or '40-F' when the company files as a foreign private issuer (no 10-Q figures), else None."""
     from edgar import Company
@@ -275,6 +306,14 @@ try:
                 packet["sec_shares_basis"] = (f"diluted weighted-average shares for the period ending {newest['end']} "
                                               + (f"(no undivided shares-outstanding figure filed since {stale_end})" if stale_end
                                                  else "(no undivided shares-outstanding figure filed)"))
+                try:  # better: the same filing's cover page, summed over share classes
+                    cov, cov_date = cover_shares(newest["accn"])
+                    if cov:
+                        total_shares = cov
+                        packet["sec_shares_basis"] = (f"cover-page shares outstanding on {cov_date}, all share classes, "
+                                                      f"from the {newest.get('form')} filed {newest.get('filed')}")
+                except Exception as e:
+                    packet["notes"].append(f"cover-page share count unreadable ({type(e).__name__}); used the average share count")
     if total_shares is None:
         packet["errors"].append(f"sec facts: newest SEC share count is from {stale_end}, too old to check market cap"
                                 if stale_end else "sec facts: no shares-outstanding figure filed")
