@@ -77,6 +77,11 @@ function engine(D){
   const bQ=newestFirst(findArr(D.bsQ,isBs)), bA=newestFirst(findArr(D.bsA,isBs));
   /* foreign reporters: Webull gives statements in the company's own currency (e.g. BRL) while the price is in US dollars */
   const cur=(iA[0]||iQ[0]||bQ[0]||bA[0]||{}).currency||"USD", fx=cur==="USD"?1:N(D.fx);
+  /* Webull can keep an old row in another currency next to the restated one for the same period (NBIS 2023: a RUB
+     Yandex row beside the USD Nebius row): keep only rows in the company's currency, one per period */
+  for(const a of [iQ,iA,cQ,cA,bQ,bA]){ const seen=new Set();
+    const keep=a.filter(r=>(!r.currency||r.currency===cur)&&!seen.has(r.end_date)&&seen.add(r.end_date));
+    a.splice(0,a.length,...keep); }
   if(!fx) throw {plain:`${sym} reports its financials in ${cur}, and the ${cur}-to-dollar exchange rate couldn't be loaded, so no value can be estimated. Try again in a minute.`};
   if(fx!==1){ const conv=r=>{ const o={...r}; for(const k in o) if(!/shares|fiscal|date|currency/.test(k)&&N(o[k])!=null) o[k]=N(o[k])*fx; return o; };
     for(const a of [iQ,iA,cQ,cA,bQ,bA]) a.forEach((r,i)=>{ a[i]=conv(r); }); }
