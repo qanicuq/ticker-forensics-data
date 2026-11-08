@@ -84,4 +84,4 @@ The owner is not a programmer. Keep explanations plain and solutions simple.
 After any correction from the owner, add one line here so the mistake isn't repeated.
 Format: `- YYYY-MM-DD: what went wrong → the rule now`
 
-- (none yet)
+- 2026-11-08: fixed engine/engine.js but left the Forensic Analysis page's own embedded copy of the engine out of date → every engine fix also goes into (1) GitHub, (2) the FA database doc system/engine, and (3) the FA page itself (artifact 5EbzJAVRmDf7fvZCbe7eDF); confirm all three match before calling it done.
