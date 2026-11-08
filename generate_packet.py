@@ -984,6 +984,7 @@ try:
         er_idx_resp.raise_for_status()
         er_href = None
         er_href_fallback = None
+        er_main = None  # the filing's own 6-K document (on a 6-K usually just a cover letter)
         for er_row in re.findall(r"<tr\b[^>]*>.*?</tr>", er_idx_resp.text, flags=re.S | re.I):
             er_tds = re.findall(r"<td\b[^>]*>(.*?)</td>", er_row, flags=re.S | re.I)
             er_texts = []
@@ -996,6 +997,8 @@ try:
             er_row_href = er_m.group(1) if er_m else None
             if not er_row_href:
                 continue
+            if any(t == "6-K" for t in er_texts):
+                er_main = er_row_href
             if any(t == "EX-99.1" for t in er_texts):
                 er_href = er_row_href
                 break
@@ -1003,7 +1006,9 @@ try:
                 er_href_fallback = er_row_href
         if er_href is None:
             er_href = er_href_fallback
-        if er_href_pre:  # a 6-K: the document that read as a results announcement
+        # a 6-K: the document that read as a results announcement, unless that was only the cover letter pointing to an
+        # attached EX-99 press release (NBIS, DHT, WIT, NAT): then keep the release. Nokia puts it in the 6-K itself.
+        if er_href_pre and not (er_href and er_href_pre == er_main):
             er_href = er_href_pre
         if not er_href:
             packet["errors"].append(f"earnings release: no EX-99 exhibit in {er_index_url}")
