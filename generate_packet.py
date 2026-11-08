@@ -934,6 +934,9 @@ def foreign_results_6k(cik, forms, dates, accns, cutoff, limit=10):
             except Exception:
                 continue
             text = re.sub(r"\s+", " ", _h.unescape(re.sub(r"<[^>]+>", " ", head))).lower()[:6000]
+            # skip the legal boilerplate: "expected financial results, are forward-looking statements" made a loan
+            # announcement read as results (NBIS 6-K of 2026-10-22, the Citi facility)
+            text = re.split(r"forward[- ]looking statement|safe harbor|cautionary (?:note|statement)", text)[0]
             if re.search(RESULTS_RE, text):
                 return d, accn, href
     return None, None, None
