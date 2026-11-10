@@ -82,7 +82,9 @@ try:
     import yfinance as yf
     end = datetime.utcnow().date()
     start = end - timedelta(days=365)
-    raw = yf.download(TICKER, start=str(start), end=str(end), progress=False, auto_adjust=True)
+    # end is exclusive: +1 day keeps today's bar, so last_close matches the price yfinance's P/E and market cap use
+    # (HOPE Nov 10 2026: yesterday's $13.36 vs today's $13.24 put the P/E check 2.8% apart instead of 1.9%)
+    raw = yf.download(TICKER, start=str(start), end=str(end + timedelta(days=1)), progress=False, auto_adjust=True)
     if raw is not None and not raw.empty:
         if isinstance(raw.columns, pd.MultiIndex):
             raw.columns = raw.columns.get_level_values(0)
@@ -725,7 +727,8 @@ try:
     if facts and FOREIGN_FORM and not report_currency(facts.get("us-gaap", {}), ANNUAL_TAGS["revenue"]):
         tax_name, tags_map = "ifrs-full", IFRS_TAGS
     gaap_all = facts.get(tax_name, {}) if facts else {}
-    cur_unit = report_currency(gaap_all, tags_map["revenue"]) if gaap_all else None
+    # banks file no revenue tag (e.g. HOPE): take the currency from net income so the annual section is still built
+    cur_unit = (report_currency(gaap_all, tags_map["revenue"]) or report_currency(gaap_all, tags_map["net_income"])) if gaap_all else None
     if gaap_all and cur_unit:
         packet["annual"] = {k: annual_series(gaap_all, tags, unit=cur_unit) for k, tags in tags_map.items()}
         fcf_acq = {}
