@@ -1,5 +1,5 @@
 # Cheap Options Scan
-Run: 2026-11-06 18:54 EST
+Run: 2026-11-09 21:30 EST
 
 | Ticker | Spot | Exp | Days | Strike | Call | Put | IV | HV20 | Ratio | Your list | Earnings unk |
 |--------|------|-----|------|--------|------|-----|----|------|-------|-----------|--------------|
