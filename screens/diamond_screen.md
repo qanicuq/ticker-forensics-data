@@ -1,15 +1,14 @@
 # Diamond Finder
 
-Run: Fri Nov 06, 2026 10:13 PM New York time. Prices are the last close from yfinance; fundamentals are from SEC filings. **These are stocks to research, not buys.** Run the interesting ones through Ticker Forensics.
+Run: Mon Nov 09, 2026 11:48 PM New York time. Prices are the last close from yfinance; fundamentals are from SEC filings. **These are stocks to research, not buys.** Run the interesting ones through Ticker Forensics.
 
-**31 of 6033** companies passed every test. Top 25 below, best first.
+**28 of 6031** companies passed every test. Top 25 below, best first.
 
-## Changes since Wednesday's run
+## Changes since Friday's run
 
-- New: BXC, KMT, SCSC, HRMY, LPG
-- Dropped: HGBL (no longer passes), LZB (fell out of top 25), EBF (fell out of top 25), AMPH (fell out of top 25), LEGH (fell out of top 25)
-- New red flag: HDSN (losing money over the last 12 months); UVV (losing money over the last 12 months)
-- 1 new Form 10 filing(s): American Antimony Corp.
+- New: LZB
+- Dropped: BXC (no longer passes)
+- New red flag: SIGA (last-12-month earnings down 97% from last annual report)
 
 ## How a stock gets on this list
 
@@ -21,31 +20,31 @@ Then ranked with equal weight on four things: cheapest on 3-year average earning
 
 | # | Ticker | Company | Price | Mkt cap | P/E (3-yr avg) | P/B | P/E × P/B ≤ 22.5? | Graham tests passed | Net-net? | Near 52-wk low? | Neff ratio | Red flags |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | **HDSN** | HUDSON TECHNOLOGIES INC /NY | $4.18 | $175.93M | 5.7 | 0.72 | Yes (4.1) | 4/7 | No | Yes (+3.7%) | -1.44 | losing money over the last 12 months; receivables +25% vs sales +4%; inventory +41% vs sales +4% |
-| 2 | **WETH** | Wetouch Technology Inc. | $0.79 | $10.60M | 1.5 | 0.07 | Yes (0.1) | 5/7 | Yes | Yes (+9.5%) | -13.44 | none |
-| 3 | **USNA** | USANA HEALTH SCIENCES INC | $13.63 | $251.84M | 6.5 | 0.48 | Yes (3.1) | 4/7 | No | Yes (+8.4%) | -1.92 | losing money over the last 12 months; inventory +47% vs sales +8% |
-| 4 | **SHOE** | SHOE STATION GROUP INC | $14.54 | $395.25M | 5.9 | 0.58 | Yes (3.5) | 6/7 | No | No (+42.5%) | -2.58 | last-12-month earnings down 53% from last annual report; inventory +14% vs sales -6% |
-| 5 | **SIGA** | SIGA TECHNOLOGIES INC | $3.10 | $222.73M | 4.4 | 1.35 | Yes (6.0) | 4/7 | No | Yes (+9.5%) | -0.48 | losing money over the last 12 months; inventory -1% vs sales -32% |
-| 6 | **UVV** | UNIVERSAL CORP /VA/ | $39.41 | $982.37M | 11.9 | 0.71 | Yes (8.4) | 5/7 | No | Yes (+3.4%) | -0.44 | losing money over the last 12 months |
-| 7 | **RES** | RPC INC | $5.31 | $1.18B | 11.1 | 1.1 | Yes (12.2) | 5/7 | No | Yes (+6.2%) | 1.31 | losing money over the last 12 months |
-| 8 | **PLAB** | PHOTRONICS INC | $27.36 | $1.61B | 12.3 | 1.26 | Yes (15.5) | 4/7 | No | No (+36.5%) | 2.13 | inventory +9% vs sales -2% |
-| 9 | **SD** | SANDRIDGE ENERGY INC | $12.49 | $463.47M | 7.2 | 0.81 | Yes (5.8) | 6/7 | No | Yes (+0.3%) | -1.29 | none |
-| 10 | **BXC** | BlueLinx Holdings Inc. | $60.62 | $476.75M | 14.0 | 0.76 | Yes (10.7) | 4/7 | No | No (+35.4%) | -0.04 | losing money over the last 12 months |
-| 11 | **ORGO** | Organogenesis Holdings Inc. | $0.81 | $105.53M | 7.4 | 0.88 | Yes (6.5) | 5/7 | No | No (+11.4%) | -7.31 | losing money over the last 12 months; receivables +98% vs sales +17% |
-| 12 | **KMT** | KENNAMETAL INC | $23.00 | $1.77B | 9.8 | 0.97 | Yes (9.5) | 7/7 | No | Yes (+1.5%) | 5.31 | receivables +38% vs sales +20%; inventory +106% vs sales +20% |
-| 13 | **IMXI** | International Money Express, Inc. | $7.34 | $221.75M | 4.4 | 1.31 | Yes (5.8) | 4/7 | No | Yes (+4.9%) | -1.27 | none |
-| 14 | **MLR** | MILLER INDUSTRIES INC /TN/ | $46.32 | $523.59M | 10.8 | 1.24 | Yes (13.5) | 5/7 | No | No (+29.7%) | 0.48 | inventory -1% vs sales -37% |
-| 15 | **INVA** | Innoviva, Inc. | $19.10 | $1.36B | 8.6 | 1.19 | Yes (10.2) | 4/7 | No | Yes (+0.5%) | -1.48 | none |
-| 16 | **SCSC** | SCANSOURCE, INC. | $42.78 | $869.51M | 11.5 | 0.95 | Yes (10.9) | 3/7 | No | No (+26.7%) | -0.26 | receivables +21% vs sales +6% |
-| 17 | **ETD** | ETHAN ALLEN INTERIORS INC | $20.07 | $505.81M | 9.8 | 1.07 | Yes (10.5) | 5/7 | No | Yes (+9.8%) | -0.95 | inventory +5% vs sales -6% |
-| 18 | **RAVE** | RAVE RESTAURANT GROUP, INC. | $2.12 | $30.13M | 11.2 | 1.74 | Yes (19.5) | 3/7 | No | Yes (+2.9%) | -2.16 | receivables +23% vs sales +7% |
-| 19 | **HRMY** | Harmony Biosciences Holdings, Inc. | $33.11 | $1.94B | 13.5 | 1.81 | No (24.4) | 4/7 | No | No (+27.8%) | 3.78 | none |
-| 20 | **YELP** | YELP INC | $19.46 | $1.06B | 8.4 | 1.64 | Yes (13.7) | 5/7 | No | No (+12.7%) | 5.3 | none |
-| 21 | **LPG** | DORIAN LPG LTD. | $46.55 | $2.00B | 10.1 | 1.42 | Yes (14.4) | 5/7 | No | No (+95.9%) | 3.23 | receivables +50% vs sales +36% |
-| 22 | **PRDO** | PERDOCEO EDUCATION Corp | $26.88 | $1.67B | 11.0 | 1.59 | Yes (17.5) | 4/7 | No | Yes (+2.4%) | 0.95 | none |
-| 23 | **VC** | VISTEON CORP | $75.68 | $1.87B | 5.3 | 1.32 | Yes (7.0) | 5/7 | No | Yes (+8.3%) | 5.33 | none |
-| 24 | **ALG** | ALAMO GROUP INC | $133.70 | $1.63B | 13.7 | 1.37 | Yes (18.8) | 5/7 | No | Yes (+0.3%) | 0.48 | inventory +12% vs sales -2% |
-| 25 | **FLXS** | FLEXSTEEL INDUSTRIES INC | $71.47 | $297.46M | 14.0 | 2.25 | No (31.5) | 6/7 | No | No (+107.2%) | 11.93 | receivables +21% vs sales +4% |
+| 1 | **HDSN** | HUDSON TECHNOLOGIES INC /NY | $4.39 | $184.77M | 5.9 | 0.75 | Yes (4.5) | 4/7 | No | Yes (+8.9%) | -1.37 | losing money over the last 12 months; receivables +25% vs sales +4%; inventory +41% vs sales +4% |
+| 2 | **WETH** | Wetouch Technology Inc. | $0.82 | $11.00M | 1.5 | 0.07 | Yes (0.1) | 5/7 | Yes | No (+13.7%) | -12.95 | none |
+| 3 | **USNA** | USANA HEALTH SCIENCES INC | $13.85 | $255.90M | 6.6 | 0.49 | Yes (3.2) | 4/7 | No | No (+10.2%) | -1.89 | losing money over the last 12 months; inventory +47% vs sales +8% |
+| 4 | **RES** | RPC INC | $5.26 | $1.17B | 11.0 | 1.09 | Yes (12.0) | 5/7 | No | Yes (+5.2%) | 1.33 | losing money over the last 12 months |
+| 5 | **UVV** | UNIVERSAL CORP /VA/ | $38.71 | $964.92M | 11.7 | 0.69 | Yes (8.1) | 5/7 | No | Yes (+3.6%) | -0.45 | losing money over the last 12 months |
+| 6 | **SHOE** | SHOE STATION GROUP INC | $15.44 | $419.72M | 6.3 | 0.62 | Yes (3.9) | 6/7 | No | No (+51.4%) | -2.46 | last-12-month earnings down 53% from last annual report; inventory +14% vs sales -6% |
+| 7 | **SIGA** | SIGA TECHNOLOGIES INC | $3.26 | $234.25M | 4.7 | 1.43 | Yes (6.7) | 4/7 | No | No (+15.2%) | -0.55 | last-12-month earnings down 97% from last annual report; inventory -1% vs sales -32% |
+| 8 | **PLAB** | PHOTRONICS INC | $28.92 | $1.71B | 13.0 | 1.33 | Yes (17.4) | 4/7 | No | No (+44.2%) | 2.02 | inventory +9% vs sales -2% |
+| 9 | **SD** | SANDRIDGE ENERGY INC | $12.24 | $454.19M | 7.0 | 0.8 | Yes (5.6) | 6/7 | No | Yes (+0.9%) | -1.31 | none |
+| 10 | **IMXI** | International Money Express, Inc. | $7.57 | $228.76M | 4.5 | 1.3 | Yes (5.9) | 4/7 | No | No (+10.3%) | -1.23 | none |
+| 11 | **ORGO** | Organogenesis Holdings Inc. | $0.91 | $117.73M | 8.2 | 0.98 | Yes (8.1) | 4/7 | No | No (+24.2%) | -6.55 | losing money over the last 12 months; receivables +98% vs sales +17% |
+| 12 | **INVA** | Innoviva, Inc. | $19.00 | $1.35B | 8.5 | 1.19 | Yes (10.1) | 4/7 | No | Yes (+1.6%) | -1.49 | none |
+| 13 | **KMT** | KENNAMETAL INC | $24.18 | $1.86B | 10.3 | 1.02 | Yes (10.5) | 6/7 | No | Yes (+6.8%) | 5.02 | receivables +38% vs sales +20%; inventory +106% vs sales +20% |
+| 14 | **MLR** | MILLER INDUSTRIES INC /TN/ | $48.62 | $549.59M | 11.4 | 1.3 | Yes (14.8) | 5/7 | No | No (+36.1%) | 0.45 | inventory -1% vs sales -37% |
+| 15 | **SCSC** | SCANSOURCE, INC. | $44.06 | $895.52M | 11.8 | 0.98 | Yes (11.6) | 3/7 | No | No (+30.5%) | -0.25 | receivables +21% vs sales +6% |
+| 16 | **RAVE** | RAVE RESTAURANT GROUP, INC. | $2.16 | $30.79M | 11.5 | 1.71 | Yes (19.6) | 3/7 | No | Yes (+4.9%) | -2.11 | receivables +23% vs sales +7% |
+| 17 | **LPG** | DORIAN LPG LTD. | $45.98 | $1.98B | 10.0 | 1.4 | Yes (14.0) | 5/7 | No | No (+93.5%) | 3.28 | receivables +50% vs sales +36% |
+| 18 | **HRMY** | Harmony Biosciences Holdings, Inc. | $33.78 | $1.98B | 13.7 | 1.85 | No (25.4) | 4/7 | No | No (+30.4%) | 3.71 | none |
+| 19 | **YELP** | YELP INC | $19.58 | $1.07B | 8.5 | 1.59 | Yes (13.5) | 5/7 | No | No (+13.4%) | 5.24 | none |
+| 20 | **VC** | VISTEON CORP | $78.03 | $1.93B | 5.4 | 1.36 | Yes (7.4) | 5/7 | No | No (+11.6%) | 5.17 | none |
+| 21 | **ETD** | ETHAN ALLEN INTERIORS INC | $20.34 | $512.66M | 9.9 | 1.35 | Yes (13.3) | 4/7 | No | No (+11.3%) | -0.94 | inventory +5% vs sales -6% |
+| 22 | **PRDO** | PERDOCEO EDUCATION Corp | $27.44 | $1.70B | 11.2 | 1.63 | Yes (18.2) | 4/7 | No | Yes (+4.6%) | 0.93 | none |
+| 23 | **LZB** | LA-Z-BOY INC | $32.65 | $1.31B | 12.1 | 1.29 | Yes (15.6) | 4/7 | No | No (+15.0%) | -0.49 | none |
+| 24 | **FLXS** | FLEXSTEEL INDUSTRIES INC | $74.12 | $308.49M | 14.5 | 2.34 | No (33.9) | 5/7 | No | No (+114.8%) | 11.5 | receivables +21% vs sales +4% |
+| 25 | **ALG** | ALAMO GROUP INC | $140.97 | $1.71B | 14.5 | 1.45 | Yes (20.9) | 5/7 | No | Yes (+5.7%) | 0.45 | inventory +12% vs sales -2% |
 
 Graham tests = the 7 enterprising-investor tests in SKILL.md. Red flags are quick forensic checks (SKILL.md section 4); a flag means look harder, not automatically avoid.
 
@@ -64,15 +63,15 @@ The SEC has no current company-wide share count for these (usually because they 
 
 ## Why other companies were left out
 
-- a loss in the last 5 years: 2109
-- under 5 years of annual reports: 1658
-- not US GAAP (foreign filer): 637
+- a loss in the last 5 years: 2108
+- under 5 years of annual reports: 1664
+- not US GAAP (foreign filer): 631
 - no current assets/liabilities (banks, insurers, REITs): 453
-- current ratio under 1.5: 429
-- market cap over $2B: 176
-- debt over 110% of net current assets: 165
-- no SEC company facts (often foreign filers): 156
-- P/E over 15 on 3-yr average earnings: 62
+- current ratio under 1.5: 428
+- market cap over $2B: 178
+- debt over 110% of net current assets: 166
+- no SEC company facts (often foreign filers): 157
+- P/E over 15 on 3-yr average earnings: 61
 - gap in annual reports: 39
 - average volume under 50K shares: 25
 - missing total liabilities or equity: 21
