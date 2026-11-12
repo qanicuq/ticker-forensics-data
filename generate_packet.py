@@ -75,6 +75,7 @@ except Exception as e:
 prices = None
 last_close = None
 yf_market_cap = None
+quote_price = None
 yf_pe = None
 yf_revenue_4q = None
 company_name = TICKER
@@ -98,6 +99,12 @@ try:
     company_name = info.get("shortName") or info.get("longName") or TICKER
     yf_market_cap = round2(info.get("marketCap"))
     yf_pe = round2(info.get("trailingPE"))
+    # the price yfinance used for marketCap and trailingPE; the SEC checks use it too, because the daily history can
+    # lag a day after the close (IMXI Nov 11 2026: history ended at Nov 10's $6.50, the quote was $6.89, so market cap
+    # and P/E looked 6% apart with share counts and EPS matching)
+    quote_price = info.get("currentPrice") or info.get("regularMarketPrice")
+    if quote_price:
+        packet["cross_check"]["matches"].append({"field": "check_price", "source": "yfinance quote", "value": round2(quote_price)})
     # foreign filers (ADRs) report in their home currency; the engine converts to US dollars with this rate
     fin_cur = info.get("financialCurrency")
     if fin_cur and fin_cur != "USD":
@@ -387,8 +394,8 @@ try:
     if total_shares is None:
         packet["errors"].append(f"sec facts: newest SEC share count is from {stale_end}, too old to check market cap"
                                 if stale_end else "sec facts: no shares-outstanding figure filed")
-    elif last_close:
-        sec_market_cap = round2(total_shares * last_close)
+    elif quote_price or last_close:
+        sec_market_cap = round2(total_shares * (quote_price or last_close))
     if FOREIGN_FORM:  # no 10-Q figures: the quarterly P/E and 12-month revenue checks don't apply
         raise StopIteration
     # some companies switch EPS tags between filings (BB's fiscal-2027 10-Qs use the continuing-operations tag only):
@@ -429,8 +436,8 @@ try:
                     rev_sum = None
     if eps_sum is not None and split_in_eps(eps_rows(eps_tag)):
         sec_pe = "split"
-    elif eps_sum is not None and last_close and eps_sum > 0:
-        sec_pe = round2(last_close / eps_sum)
+    elif eps_sum is not None and (quote_price or last_close) and eps_sum > 0:
+        sec_pe = round2((quote_price or last_close) / eps_sum)
     elif eps_sum is not None and eps_sum <= 0:
         sec_pe = "negative"
     elif eps_sum is None and not any(t == eps_tag for t, _ in behind):
