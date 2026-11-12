@@ -938,17 +938,29 @@ def cmd_trigger(final_path, ticker, check=None):
             cheap_first = ep.get("entryType") == "value" and ce is not None and target is not None and ce < target
             if cheap_first:  # Dreman Rule 21: the "no longer cheap" price comes before estimated value, so the bot sells there
                 target = ce
-            waiting = [p for p in (_bot_file("ledger.yml").get("positions") or []) if p.get("ticker") == t and p.get("source") == "forensic" and p.get("target_reached")]
+            # any held forensic stock gets a RECHECK, not a new buy trigger (user, 2026-11-11): the bot adjusts its
+            # target and stop, or trims/sells; one at its target gets the Nov 7 target re-check
+            held = [p for p in (_bot_file("ledger.yml").get("positions") or []) if p.get("ticker") == t and p.get("source") == "forensic"
+                    and not p.get("is_option") and p.get("action") not in ("SPREAD", "POSITION")]
+            at_target = any(p.get("target_reached") for p in held)
             dhold = A.get("dataHold")
-            if waiting and not dhold:
+            sn = final.get("staleNumbers")
+            if held and not dhold and not at_target and sn:
+                result = {"triggerNote": f"You hold {t}, but this report still uses figures through {sn['dataThrough']} (newer results "
+                                         f"were filed {sn['resultsFiled']}), so the position was not changed. Run it again once Webull has the new quarter."}
+            elif held and not dhold:
                 target_is_value = bool(cheap_first) or not ep.get("entryType") or "estimated value" in str(ep.get("targetBasis") or "").lower()
                 franchise = bool((A.get("value") or {}).get("franchise"))
                 tgt = round(target, 2) if target is not None else None
                 wd = num(A.get("worstDrop"))
                 stop_pct = round(max(0.25, wd + 0.05), 4) if wd is not None else 0.25  # same disaster-stop rule as the engine
-                y = f"id: {t}-recheck-{today}\nsource: forensic\nticker: {t}\naction: RECHECK\ntarget: {tgt if tgt is not None else 'null'}\ntarget_is_value: {str(target_is_value).lower()}\nfranchise: {str(franchise).lower()}\nstop_pct: {stop_pct}\n"
-                ok, err = _send_checked(y, {"kind": "recheck", "ticker": t}, f"{t}: re-check not recorded", f"The fresh {t} analysis could not reach the paper bot. The held {t} position is still waiting at its target.")
-                result = {"trigger": {"id": f"{t}-recheck-{today}", "entry": "Re-check sent for the held position at its target" + (f" ({err})" if err else "")}} if ok else {"triggerNote": f"{err}."}
+                y = f"id: {t}-recheck-{today}\nsource: forensic\nticker: {t}\naction: RECHECK\ntarget: {tgt if tgt is not None else 'null'}\ntarget_is_value: {str(target_is_value).lower()}\nfranchise: {str(franchise).lower()}\nstop_pct: {stop_pct}\n" + (f"stop: {round(stop, 2)}\n" if stop is not None else "") + f"report_date: {today}\n"
+                if final.get("dataThrough"):
+                    y += f"data_through: {final['dataThrough']}\n"
+                where = "is still waiting at its target" if at_target else "keeps its old target and stop"
+                ok, err = _send_checked(y, {"kind": "recheck", "ticker": t}, f"{t}: re-check not recorded", f"The fresh {t} analysis could not reach the paper bot. The held {t} position {where}.")
+                what = "at its target" if at_target else "(adjust target and stop, or trim/sell)"
+                result = {"trigger": {"id": f"{t}-recheck-{today}", "entry": f"Re-check sent for the held position {what}" + (f" ({err})" if err else "")}} if ok else {"triggerNote": f"{err}."}
             else:
                 why = None
                 if dhold:
