@@ -268,6 +268,23 @@ def last_4_quarters(entries):
         return None
     return [v for _, v in ordered]
 
+def split_in_eps(entries):
+    """True if a recent EPS period was filed twice with values 1.5x or more apart: a stock split, so the last 4
+    quarters mix old- and new-share-count figures. MNST's 2-for-1 split (Aug 2026): Q3 2025 EPS filed as 0.53, then
+    0.27, and the summed quarters gave a P/E of 20.8 against the real 41.3."""
+    newest = max((e["end"] for e in entries if "start" in e), default=None)
+    if newest is None:
+        return False
+    vals = {}
+    for e in entries:
+        if "start" in e and (pd.Timestamp(newest) - pd.Timestamp(e["end"])).days <= 456:
+            vals.setdefault((e["start"], e["end"]), []).append(e["val"])
+    for v in vals.values():
+        lo, hi = min(map(abs, v)), max(map(abs, v))
+        if lo > 0 and hi / lo >= 1.5 and hi - lo >= 0.05:
+            return True
+    return False
+
 def filing_durations(accn, tags):
     """{tag: {(start, end): value}} for whole-company figures covering a period, read from a filing's own XBRL file."""
     import requests
@@ -410,7 +427,9 @@ try:
                     eps_sum = None
                 else:
                     rev_sum = None
-    if eps_sum is not None and last_close and eps_sum > 0:
+    if eps_sum is not None and split_in_eps(eps_rows(eps_tag)):
+        sec_pe = "split"
+    elif eps_sum is not None and last_close and eps_sum > 0:
         sec_pe = round2(last_close / eps_sum)
     elif eps_sum is not None and eps_sum <= 0:
         sec_pe = "negative"
@@ -445,6 +464,8 @@ else:
     compare_field("market_cap", yf_market_cap, sec_market_cap, 5)
     if sec_pe == "negative":
         packet["cross_check"]["matches"].append({"field": "pe", "note": "last 4 quarters EPS negative, P/E not meaningful", "yfinance": yf_pe})
+    elif sec_pe == "split":
+        packet["cross_check"]["matches"].append({"field": "pe", "note": "stock split inside the last 4 quarters: SEC's EPS figures mix old and new share counts, so the P/E check was skipped", "yfinance": yf_pe})
     else:
         compare_field("pe", yf_pe, sec_pe, 2)
     if yf_revenue_4q is not None and len(yf_revenue_4q) < 4:
