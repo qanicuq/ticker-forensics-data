@@ -37,7 +37,7 @@ const CAT_NOTES={
 
 /* D = {sym,cat,s (snapshot),bars,prof,incQ,incA,cfQ,cfA,bsQ,bsA,rate,tgt,alert,ins,inst,tsy,peersPE,peersPB,missing:[]} (raw tool payloads) */
 function engine(D){
-  const s=D.s, sym=D.sym, missing=D.missing||[];
+  let s=D.s; const sym=D.sym, missing=D.missing||[];
   /* ---- price history and technicals ---- */
   const raw=findArr(D.bars,x=>x&&x.close!=null&&x.time!=null)||[];
   const bars=raw.map(b=>({d:String(b.time).slice(0,10),h:N(b.high),l:N(b.low),c:N(b.close),v:N(b.volume)||0})).filter(b=>b.c).sort((a,b)=>a.d<b.d?-1:1);
@@ -105,6 +105,9 @@ function engine(D){
   F.revGBasis=rev12&&rev12Prev?"over the last 12 months vs the 12 months before":"in the last fiscal year vs the year before";
   F.ebit=ttm(iQ,"op_income")??N(iA[0]?.op_income);
   F.ni=ttm(iQ,"net_income")??N(iA[0]?.net_income);
+  /* a quarter added from the company's press release is newer than Webull's snapshot, whose eps_ttm and P/E still cover the four quarters before it: scale both by the change in 12-month profit */
+  if(/press release/.test(iQ[0]?.source||"")){ const niOld=ttm(iQ,"net_income",1);
+    if(F.ni>0&&niOld>0){ const k=F.ni/niOld; s={...s}; if(N(s.eps_ttm)!=null) s.eps_ttm=N(s.eps_ttm)*k; if(N(s.pe_ratio)>0) s.pe_ratio=N(s.pe_ratio)/k; } }
   F.cfo=ttm(cQ,"cfo")??N(cA[0]?.cfo);
   F.capex=ttm(cQ,"capex")??N(cA[0]?.capex);
   F.da=ttm(cQ,"dna")??N(cA[0]?.dna);
