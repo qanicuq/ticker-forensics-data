@@ -1078,8 +1078,8 @@ try:
                 "index_url": er_index_url,
                 "url": er_href,
                 "chars_total": len(er_text),
-                "truncated": True if len(er_text) > 20000 else False,
-                "text": er_text[:20000],
+                "truncated": True if len(er_text) > 400000 else False,
+                "text": er_text[:400000],
             }
 except Exception as e:
     packet["errors"].append(f"earnings release: {type(e).__name__}: {str(e)[:120]}")
