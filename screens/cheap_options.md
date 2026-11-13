@@ -1,8 +1,9 @@
 # Cheap Options Scan
-Run: 2026-11-11 20:46 EST
+Run: 2026-11-12 19:47 EST
 
 | Ticker | Spot | Exp | Days | Strike | Call | Put | IV | HV20 | Ratio | Your list | Earnings unk |
 |--------|------|-----|------|--------|------|-----|----|------|-------|-----------|--------------|
+| NKE | 37.76 | 2026-12-11 | 29 | 38.0 | 1.57 | 2.04 | 0.4246 | 0.3584 | 1.1846 |  |  |
 
 Cheap ratio = option-implied move ÷ the stock's actual move over the last 20 trading days. Under 0.75 = unusually cheap. Not advice; when you buy an option, the most you can lose is what you paid.
 
