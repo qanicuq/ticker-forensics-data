@@ -1,8 +1,9 @@
 name: Cheap Options Scan
 
 on:
-  schedule:
-    - cron: "31 19 * * 1-5"   # 19:31 UTC = 3:31 PM New York in summer time, 2:31 PM in winter. Runs DURING market hours on purpose: Yahoo often shows a zero bid/ask after the close.
+  # Started by cron-job.org ("Cheap Options Scan" job) weekdays at 2:31 PM New York time, not GitHub's
+  # scheduler, which was starting it 3-7 hours late (after the close). Runs DURING market hours on purpose:
+  # Yahoo often shows a zero bid/ask after the close.
   workflow_dispatch:
     inputs:
       test_ping:
