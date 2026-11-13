@@ -273,3 +273,68 @@ class FillTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FillPartsAndYearEndTests(FillTests):
+    """Claude's additions (Nov 13 2026): a figure printed as several lines (DHT), and a year-end quarter whose
+    year-ago quarter differs from Webull's while the full years match (NFG)."""
+
+    def test_parts_add_up_and_each_part_is_on_its_line(self):
+        lines = LINES + ["Voyage expenses (2,000)", "Vessel operating expenses (3,158)",
+                         "Voyage expenses a year earlier (1,500)", "Vessel operating a year earlier (2,035)"]
+        figs = base_figs()
+        figs["quarter"]["cost_of_revenue"] = {"v": 5158, "parts": [{"v": 2000, "line": 13}, {"v": 3158, "line": 14}]}
+        figs["year_ago"]["cost_of_revenue"] = {"v": 3535, "parts": [{"v": 1500, "line": 15}, {"v": 2035, "line": 16}]}
+        income_q = base_income_q()
+        income_q[3]["cost_of_revenue"] = "3535000000"
+        d, figs_path, packet, _ = self._build("parts", income_q=income_q, figs=figs, lines=lines)
+        out = self._run(d, figs_path, packet)
+        self.assertTrue(out.startswith("PASS\n"), out)
+        # a part that is not on its line, and parts that don't add up, both fail
+        figs["quarter"]["cost_of_revenue"] = {"v": 5158, "parts": [{"v": 2000, "line": 13}, {"v": 3000, "line": 14}]}
+        d2, figs_path2, packet2, original2 = self._build("parts_bad", income_q=income_q, figs=figs, lines=lines)
+        out2 = self._run(d2, figs_path2, packet2)
+        self.assertTrue(out2.startswith("FAIL\n"), out2)
+        self.assertIn("not on line 14", out2)
+        self.assertIn("do not add up", out2)
+        self.assertEqual(_readb(os.path.join(d2, "income_q.json")), original2)
+
+    def _year_end(self, name, q4_rev):
+        """Q4 revenue 10,409 = full year 35,909 − Webull's three quarters (9,000 + 8,500 + 8,000)."""
+        lines = LINES + ["Full year revenue $35,909 and a year earlier $31,300",
+                         "Full year operating income $11,958 and a year earlier $9,000",
+                         "Full year gross profit $17,851 and a year earlier $15,000",
+                         "Full year net income $9,618 and a year earlier $8,000",
+                         "Full year diluted EPS $12.04 and diluted shares 799",
+                         f"A year earlier quarter revenue restated $6,650"]
+        figs = base_figs()
+        figs["fiscal_year_end"] = True
+        figs["quarter"]["total_revenue"] = _fig(q4_rev, 3)
+        figs["year_ago"]["total_revenue"] = _fig(6650, 18)  # differs from Webull's 6,800 by 2.2%
+        figs["annual"] = {"total_revenue": _fig(35909, 13), "op_income": _fig(11958, 14), "gross_profit": _fig(17851, 15),
+                          "net_income": _fig(9618, 16), "diluted_eps": _fig(12.04, 17), "diluted_avg_shares": _fig(799, 17)}
+        figs["annual_year_ago"] = {"period_end": "2025-10-26", "total_revenue": _fig(31300, 13), "op_income": _fig(9000, 14),
+                                   "gross_profit": _fig(15000, 15), "net_income": _fig(8000, 16)}
+        d, figs_path, packet, original = self._build(name, figs=figs, lines=lines)
+        with open(os.path.join(d, "income_a.json"), "w") as f:
+            json.dump([{"end_date": "2025-10-26", "currency": "USD", "total_revenue": "31300000000", "op_income": "9000000000",
+                        "gross_profit": "15000000000", "net_income": "8000000000"}], f)
+        return d, figs_path, packet, original
+
+    def test_year_end_restated_year_ago_quarter_is_excused_when_full_year_agrees(self):
+        d, figs_path, packet, _ = self._year_end("ye_ok", 10409)
+        out = self._run(d, figs_path, packet)
+        self.assertTrue(out.startswith("PASS\n"), out)
+        self.assertIn("excused", out)
+
+    def test_year_end_not_excused_when_quarter_is_not_year_minus_three_quarters(self):
+        lines_q = 10409  # same printed value, but make Webull's quarters disagree with the full year
+        d, figs_path, packet, original = self._year_end("ye_bad", lines_q)
+        rows = _readj(os.path.join(d, "income_q.json"))
+        rows[0]["total_revenue"] = "9500000000"
+        with open(os.path.join(d, "income_q.json"), "w") as f:
+            json.dump(rows, f)
+        out = self._run(d, figs_path, packet)
+        self.assertTrue(out.startswith("FAIL\n"), out)
+        self.assertIn("year-ago total_revenue", out)
+        self.assertIn("full year minus", out)

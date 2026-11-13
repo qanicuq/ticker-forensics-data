@@ -1239,6 +1239,8 @@ def _build_statement_row(section, end_date, filed, currency, units, share_units)
             vals[key] = v * units
     if "cost_of_revenue" not in vals and "gross_profit" in vals and "total_revenue" in vals:
         vals["cost_of_revenue"] = vals["total_revenue"] - vals["gross_profit"]
+    if "gross_profit" not in vals and "cost_of_revenue" in vals and "total_revenue" in vals:
+        vals["gross_profit"] = vals["total_revenue"] - vals["cost_of_revenue"]  # a release with no gross-profit line (DHT)
     for key in _FILL_MONEY:
         if key in vals:
             row[key] = _show(vals[key])
@@ -1347,10 +1349,10 @@ def cmd_fill(ticker, dir_path, figs_path, packet_path=None, web=False):
         checks.append("The quarter has total_revenue, operating income, net income, diluted EPS and diluted shares")
     # F5
     if W and _nonempty(W.get("gross_profit")):
-        if not has_v(quarter, "gross_profit"):
-            problems.append("The quarter is missing gross_profit, which Webull's latest quarter has.")
+        if not has_v(quarter, "gross_profit") and not has_v(quarter, "cost_of_revenue"):
+            problems.append("The quarter is missing gross_profit (or cost_of_revenue), which Webull's latest quarter has.")
         else:
-            checks.append("The quarter has gross profit, which Webull's latest quarter also has")
+            checks.append("The quarter has gross profit (or cost of revenue), which Webull's latest quarter also has")
     # F6
     ya_missing = [k for k in quarter if k not in ("diluted_eps", "diluted_avg_shares") and k not in year_ago]
     for k in ya_missing:
@@ -1384,11 +1386,27 @@ def cmd_fill(ticker, dir_path, figs_path, packet_path=None, web=False):
             for name, section in _fig_sections(figs):
                 for key, fig in _figures(section):
                     v = num(fig.get("v"))
+                    if isinstance(fig.get("parts"), list):
+                        # a figure the release prints as several lines (DHT: voyage + vessel operating expenses = Webull's
+                        # cost of revenue): each part must be on its own line and the parts must add up to v
+                        parts = [p for p in fig["parts"] if isinstance(p, dict)]
+                        for p in parts:
+                            pv, pn = num(p.get("v")), _line_no(p.get("line"))
+                            if pv is None or pn is None or pn < 1 or pn > len(lines):
+                                line_bad.append(f"{name} {key}: part line {p.get('line')} does not exist in the earnings release.")
+                            elif not any(abs(abs(got) - abs(pv)) <= 0.0000001 for got in _line_numbers(lines[pn - 1])):
+                                line_bad.append(f"{name} {key}: part {_show(pv)} is not on line {pn}.")
+                        if v is None or not parts or any(num(p.get("v")) is None for p in parts) \
+                                or abs(sum(num(p.get("v")) for p in parts) - v) > 0.0000001:
+                            line_bad.append(f"{name} {key}: the parts do not add up to {fig.get('v')}.")
+                        continue
                     n = _line_no(fig.get("line"))
                     if v is None or n is None or n < 1 or n > len(lines):
                         line_bad.append(f"{name} {key}: line {fig.get('line')} does not exist in the earnings release.")
-                    elif not any(abs(got - v) <= 0.0000001 for got in _line_numbers(lines[n - 1])):
+                    elif not any(abs(abs(got) - abs(v)) <= 0.0000001 for got in _line_numbers(lines[n - 1])):
                         line_bad.append(f"{name} {key}: {_show(v)} is not on line {n}.")
+            # the sign is not checked on the line: a release prints costs in brackets while Webull stores them as
+            # positive numbers; the year-ago check against Webull settles the sign
             problems.extend(line_bad)
             if not line_bad:
                 checks.append("Every figure is on the press-release line that was named")
@@ -1454,6 +1472,42 @@ def cmd_fill(ticker, dir_path, figs_path, packet_path=None, web=False):
             problems.append(ann_eps)
         elif units is not None and share_units is not None and not ann_missing:
             checks.append("Annual net income divided by diluted shares agrees with annual diluted EPS")
+        # The new quarter must equal the full year minus Webull's first three quarters of that year. When it does and
+        # the full-year year-ago figures match Webull, a year-ago QUARTER mismatch is the company restating that old
+        # quarter (NFG Nov 2026: its four FY2025 quarters don't add up to FY2025, Webull's Q4 is the year minus three
+        # quarters), not a misread, so it is excused for that figure only.
+        try:
+            fy_start = date.fromisoformat(str(aya.get("period_end"))[:10]) + timedelta(days=10)
+        except (TypeError, ValueError):
+            fy_start = None
+        prior = [r for r in q_rows if fy_start and str(r.get("end_date") or "") > fy_start.isoformat()]
+        ytd_ok = set()
+        if units is not None and fy_start and len(prior) == 3:
+            for key in _FILL_MONEY:
+                qv, av = _fig_v(quarter, key), _fig_v(annual, key)
+                pv = [num(r.get(key)) for r in prior]
+                if qv is None or av is None:
+                    continue
+                if any(v is None for v in pv):
+                    problems.append(f"Webull's first three quarters of the fiscal year lack {key}, so the quarter can't be checked against the full year.")
+                    continue
+                expect = av * units - sum(pv)
+                if abs(expect - qv * units) > 0.01 * max(abs(qv * units), 1):
+                    problems.append(f"The quarter's {key} {_show(qv * units)} is not the full year minus Webull's first three quarters ({_show(expect)}).")
+                else:
+                    ytd_ok.add(key)
+            if ytd_ok:
+                checks.append("The quarter equals the full year minus Webull's first three quarters for " + ", ".join(sorted(ytd_ok)))
+        elif units is not None:
+            problems.append(f"Webull has {len(prior)} quarters of the fiscal year before this one (3 needed), so the quarter can't be checked against the full year.")
+        if aya_ok:
+            excused = [k for k in ytd_ok for p in problems if p.startswith(f"The quarterly year-ago {k} ")]
+            for k in excused:
+                hit = [p for p in problems if p.startswith(f"The quarterly year-ago {k} ")][0]
+                problems.remove(hit)
+                checks.append(f"{hit[:-1]} (the company's own figure for that old quarter differs from Webull's); excused because the full-year figures match Webull and the new quarter equals the full year minus Webull's first three quarters")
+            if excused and not any(p.startswith("The quarterly year-ago ") or p.startswith("No Webull quarterly row") for p in problems):
+                checks.append("Every other year-ago quarter figure matches Webull within 1%")
 
     filed, url = figs.get("filed"), figs.get("url")
     if problems:
@@ -1468,12 +1522,16 @@ def cmd_fill(ticker, dir_path, figs_path, packet_path=None, web=False):
 
     currency = (W or {}).get("currency") or "USD"
     new_q = _build_statement_row(quarter, period_end, filed, currency, units, share_units)
+    if not (W and _nonempty(W.get("gross_profit"))):
+        new_q.pop("gross_profit", None)  # Webull shows no gross profit for this company (NFG): keep the rows alike
     q_path = os.path.join(dir_path, "income_q.json")
     _backup_once(q_path, os.path.join(dir_path, "income_q.webull.json"))
     _write_json(q_path, [new_q] + q_rows)
     if fiscal_year_end:
         annual = figs.get("annual") if isinstance(figs.get("annual"), dict) else {}
         new_a = _build_statement_row(annual, period_end, filed, currency, units, share_units)
+        if not (a_rows and _nonempty(a_rows[0].get("gross_profit"))):
+            new_a.pop("gross_profit", None)
         a_path = os.path.join(dir_path, "income_a.json")
         _backup_once(a_path, os.path.join(dir_path, "income_a.webull.json"))
         _write_json(a_path, [new_a] + a_rows)
