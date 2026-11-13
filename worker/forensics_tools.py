@@ -368,8 +368,12 @@ def cmd_sec(job_path, packet_path, engine_path=None, filled_path=None):
     # in the company's own reporting currency and no exchange rate enters the check
     fx = 1.0 if cur == "USD" else num((fin or {}).get("fx"))
     annual_why = None
+    # a bank or lender's value rests on net income, and sources define its "revenue" differently (AXP, Nov 13 2026:
+    # Webull counts interest income, the SEC contract-revenue line doesn't), so it is checked on profit only
+    fin_co = "financial company" in str((A.get("value") or {}).get("method") or "")
+    core = ("net income",) if fin_co else ("revenue", "operating income")
     pairs = [("Market cap", num((E.get("quote") or {}).get("marketCap")), sec_val.get("market_cap"))]
-    if fin and cur == "USD" and not foreign:
+    if fin and cur == "USD" and not foreign and not fin_co:
         ttm_rev = num(fin.get("rev"))
         if FL and FL.get("ttm_rev_before") is not None:
             ttm_rev = FL["ttm_rev_before"]
@@ -384,6 +388,8 @@ def cmd_sec(job_path, packet_path, engine_path=None, filled_path=None):
                 own = {k: (num(v) / fx if num(v) is not None else None) if k in ("rev", "op", "ni", "un", "oi") else v
                        for k, v in row.items()}
                 for key, label in (("rev", "revenue"), ("op", "operating income"), ("ni", "net income")):
+                    if fin_co and key != "ni":
+                        continue
                     s = num((an.get({"rev": "revenue", "op": "operating_income", "ni": "net_income"}[key]) or {}).get(row.get("end")))
                     if s is not None:
                         pairs.append((f"Fiscal {row.get('end')} {label}", own.get(key), s, own))
@@ -418,10 +424,10 @@ def cmd_sec(job_path, packet_path, engine_path=None, filled_path=None):
             out["disagreements"] += 1
             out["add"]["redFlags"].append({"issue": "Data sources disagree", "severity": "low",
                                            "detail": f"{label}: Webull {bigc(page, label)}{' (' + basis + ')' if basis else ''} vs SEC {bigc(sec, label)} ({d:.1f}% apart)"})
-            if "revenue" in label or "operating income" in label:
+            if any(k in label for k in core):
                 worst_core = max(worst_core, d)
                 # serious: a figure the value is built on. No paper-bot trigger until Claude settles which source is right.
-                tag = "OperatingIncomeLoss" if "operating income" in label else "Revenues"
+                tag = "OperatingIncomeLoss" if "operating income" in label else "NetIncomeLoss" if "net income" in label else "Revenues"
                 if "operating income" in label and (an or {}).get("operating_income_basis"):
                     tag = "GrossProfit"  # the company files no operating-income line; the SEC figure was built from these
                 link = (f"https://data.sec.gov/api/xbrl/companyconcept/CIK{int(pk['cik']):010d}/us-gaap/{tag}.json"
@@ -448,15 +454,14 @@ def cmd_sec(job_path, packet_path, engine_path=None, filled_path=None):
                     "\"both\"); otherwise SEC or unsure. Never guess. An "
                     "unsettled item holds the trigger and the script alerts the user. Mention how it was settled in the summary.")
     if worst_core > 10:
-        out["add"]["valueNotes"].append(f"Revenue or operating income differs from SEC filings by about {worst_core:.0f}%, so the estimated value may be off by about that much.")
+        out["add"]["valueNotes"].append(f"{'Net income' if fin_co else 'Revenue or operating income'} differs from SEC filings by about {worst_core:.0f}%, so the estimated value may be off by about that much.")
     # only market cap disagrees while revenue and operating income agree: usually the SEC share count includes shares
     # the company holds itself (e.g. RLX's treasury/ESOP shares), so keep the flag but don't cut confidence for it
     bad = [c["figure"] for c in out["compared"] if c["pctApart"] > 5]
-    out["mcapOnly"] = (bad == ["Market cap"] and any("revenue" in c["figure"] for c in out["compared"])
-                       and any("operating income" in c["figure"] for c in out["compared"]))
+    out["mcapOnly"] = bad == ["Market cap"] and all(any(k in c["figure"] for c in out["compared"]) for k in core)
     for f in out["add"]["redFlags"] if out["mcapOnly"] else []:
         if f["issue"] == "Data sources disagree" and f["detail"].startswith("Market cap:"):
-            f["detail"] += "; revenue and operating income agree, so this is likely a share-count difference (no confidence cut)"
+            f["detail"] += f"; {' and '.join(core)} agree{'s' if fin_co else ''}, so this is likely a share-count difference (no confidence cut)"
     out["allWithin2"] = bool(out["compared"]) and all(c["pctApart"] <= 2 for c in out["compared"])
 
     # the risk-free rate: the report's must match the packet's daily 10-year Treasury rate unless the 8% floor on the
