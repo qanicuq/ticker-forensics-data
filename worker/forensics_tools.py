@@ -543,6 +543,21 @@ def cmd_sec(job_path, packet_path, engine_path=None, filled_path=None):
                         "surprise tag (e.g. Webull shows a miss while the company or a news report shows a beat on adjusted EPS), set "
                         "patch \"surprise\" to {\"tag\": \"Sources disagree\", \"note\": both sets of numbers with their sources}. "
                         "A disputed surprise counts as unknown, never as good or bad.")
+    # FRO, Nov 14 2026: the summary cited "Benzinga $37.86" as the consensus target while the report's own analyst line
+    # (Webull) said median $57.50, and quoted a headline's "7.1%" fall where the closes show -8.47%
+    av = A.get("analystView") or ""
+    out["judge"].append("ANALYST FIGURES: wherever you mention analyst counts, ratings or price targets (summary, bullBear, "
+                        "risks, news, recentEvents), use only the report's own Webull figures" +
+                        (f", copied exactly: \"{av}\"" if av else ": there are none this run, so state none") +
+                        ". Never cite another site's consensus target or rating count, even with a link.")
+    ch = [r for r in (E.get("chart") or []) if num((r or {}).get("c")) is not None][-21:]
+    moves = [(ch[i]["d"], ch[i - 1]["c"], ch[i]["c"]) for i in range(1, len(ch))]
+    big_moves = [f"{d} {(c / p - 1) * 100:+.1f}% (${p:.2f} → ${c:.2f})" for d, p, c in moves if p and abs(c / p - 1) >= 0.05]
+    out["judge"].append("ONE-DAY MOVES: wherever you state a one-day price move as a percentage, use the close-to-close figure "
+                        "from the price history, never a headline's number (a headline may measure at another time of day). "
+                        + ("Moves of 5% or more in the last 20 sessions: " + "; ".join(big_moves) + "."
+                           if big_moves else "There was no one-day move of 5% or more in the last 20 sessions.")
+                        + " For any other day, give no percentage.")
     # special situations (Greenblatt): newest filing decides the label
     for s in gov.get("special_situations") or []:
         form = s.get("form") or ""
