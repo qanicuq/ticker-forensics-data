@@ -658,9 +658,10 @@ def report_currency(tax, tags):
                 best = (unit, max(ends))
     return best[0] if best else None
 
-def annual_series(gaap, tags, years=5, unit="USD"):
-    """Fiscal-year values from 10-K/20-F/40-F filings: {fy_end: value}, newest first, using the tag with the latest data."""
-    best = {}
+def annual_series(gaap, tags, years=5, unit="USD", used=None, key=None):
+    """Fiscal-year values from 10-K/20-F/40-F filings: {fy_end: value}, newest first, using the tag with the latest data.
+    When used is a dict, used[key] is set to that tag's name (so the SEC link points at the line actually compared)."""
+    best, best_tag = {}, None
     for tag in tags:
         units = gaap.get(tag, {}).get("units", {}).get(unit, [])
         vals = {}
@@ -672,7 +673,9 @@ def annual_series(gaap, tags, years=5, unit="USD"):
             if e["end"] not in vals or e["filed"] > vals[e["end"]]["filed"]:
                 vals[e["end"]] = e
         if vals and (not best or max(vals) > max(best)):
-            best = vals
+            best, best_tag = vals, tag
+    if used is not None and best_tag:
+        used[key] = best_tag
     return {end: round2(best[end]["val"]) for end in sorted(best, reverse=True)[:years]}
 
 try:
@@ -752,13 +755,21 @@ try:
         except Exception as e:
             packet["errors"].append(f"newest annual filing: {type(e).__name__}: {str(e)[:120]}")
     tax_name, tags_map = "us-gaap", ANNUAL_TAGS
-    if facts and FOREIGN_FORM and not report_currency(facts.get("us-gaap", {}), ANNUAL_TAGS["revenue"]):
+    # use IFRS when its newest full year is newer than US GAAP's: FRO switched to IFRS from 2022, so its US GAAP
+    # figures stop at 2021 and were being compared with Webull's restated 2021 numbers (Nov 14 2026)
+    def _newest_rev(tax, tags):
+        return max([e["end"] for tag in tags for es in facts.get(tax, {}).get(tag, {}).get("units", {}).values()
+                    for e in es if e.get("form") in ANNUAL_FORMS and "start" in e] or [""])
+    # net income too, so a foreign bank (no revenue tag) still switches
+    if facts and FOREIGN_FORM and (_newest_rev("ifrs-full", IFRS_TAGS["revenue"] + IFRS_TAGS["net_income"])
+                                   > _newest_rev("us-gaap", ANNUAL_TAGS["revenue"] + ANNUAL_TAGS["net_income"])):
         tax_name, tags_map = "ifrs-full", IFRS_TAGS
     gaap_all = facts.get(tax_name, {}) if facts else {}
     # banks file no revenue tag (e.g. HOPE): take the currency from net income so the annual section is still built
     cur_unit = (report_currency(gaap_all, tags_map["revenue"]) or report_currency(gaap_all, tags_map["net_income"])) if gaap_all else None
     if gaap_all and cur_unit:
-        packet["annual"] = {k: annual_series(gaap_all, tags, unit=cur_unit) for k, tags in tags_map.items()}
+        _used = {}
+        packet["annual"] = {k: annual_series(gaap_all, tags, unit=cur_unit, used=_used, key=k) for k, tags in tags_map.items()}
         fcf_acq = {}
         for end, cfo in packet["annual"]["cfo"].items():
             capex = packet["annual"]["capex"].get(end) or 0
@@ -792,6 +803,7 @@ try:
                                     "capex and acquisitions are cash paid (positive).")
         packet["annual"]["currency"] = cur_unit
         packet["annual"]["taxonomy"] = tax_name
+        packet["annual"]["tags"] = _used
         packet["annual"]["newest_end"] = max(packet["annual"]["revenue"]) if packet["annual"]["revenue"] else None
 except Exception as e:
     packet["errors"].append(f"sec annual: {type(e).__name__}: {str(e)[:120]}")
@@ -953,7 +965,8 @@ def foreign_results_6k(cik, forms, dates, accns, cutoff, limit=10):
         for row in rows:
             m = re.search(r"""href\s*=\s*["']([^"']+\.htm[l]?)["']""", row, flags=re.I)
             plain = _h.unescape(re.sub(r"<[^>]+>", " ", row))
-            if m and re.search(r"\b(?:6-K|EX-99[.0-9]*)\b", plain):
+            # FRO attaches its results as EX-1, not EX-99 (Nov 14 2026)
+            if m and re.search(r"\b(?:6-K|EX-99[.0-9]*|EX-1(?:\.[0-9]+)?)\b", plain):
                 docs.append((m.group(1), plain))
         for href, desc in docs[:3]:
             url = href[len("/ix?doc="):] if href.startswith("/ix?doc=") else href
@@ -1015,6 +1028,7 @@ try:
         er_idx_resp.raise_for_status()
         er_href = None
         er_href_fallback = None
+        er_href_ex1 = None
         er_main = None  # the filing's own 6-K document (on a 6-K usually just a cover letter)
         for er_row in re.findall(r"<tr\b[^>]*>.*?</tr>", er_idx_resp.text, flags=re.S | re.I):
             er_tds = re.findall(r"<td\b[^>]*>(.*?)</td>", er_row, flags=re.S | re.I)
@@ -1035,8 +1049,11 @@ try:
                 break
             if er_href_fallback is None and any(t.startswith("EX-99") for t in er_texts):
                 er_href_fallback = er_row_href
+            # FRO's 6-K carries its results release as EX-1 (Nov 14 2026); used only when there is no EX-99
+            if er_href_ex1 is None and any(re.fullmatch(r"EX-1(?:\.[0-9]+)?", t) for t in er_texts):
+                er_href_ex1 = er_row_href
         if er_href is None:
-            er_href = er_href_fallback
+            er_href = er_href_fallback or er_href_ex1
         # a 6-K: the document that read as a results announcement, unless that was only the cover letter pointing to an
         # attached EX-99 press release (NBIS, DHT, WIT, NAT): then keep the release. Nokia puts it in the 6-K itself.
         if er_href_pre and not (er_href and er_href_pre == er_main):

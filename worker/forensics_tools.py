@@ -416,6 +416,14 @@ def cmd_sec(job_path, packet_path, engine_path=None, filled_path=None):
                 dv = _pct_apart(v, sec)
                 if (un or oi) and dv is not None and dv < d:
                     d, page, basis = dv, v, name
+        if "revenue" in label and label.startswith("Fiscal ") and row and (an or {}).get("taxonomy") == "ifrs-full":
+            # IFRS "Revenue" can include gains (e.g. FRO's vessel-sale gains) that Webull keeps on its one-time line
+            # ("un", negative = a gain): FRO 2024 Webull $2,050.4M minus un -$112.1M = SEC $2,162.5M exactly.
+            # Used only when it brings the two within 2%, so it can't hide a real gap (Nov 14 2026)
+            un = num(row[0].get("un")) or 0
+            dv = _pct_apart(page - un, sec) if un else None
+            if dv is not None and dv <= 2 and dv < d:
+                d, page, basis = dv, page - un, "including its one-time items (gains on sales), as the IFRS revenue line does"
         c = {"figure": label, "page": page, "sec": sec, "pctApart": round(d, 2)}
         if basis:
             c["basis"] = f"Webull figure {basis}"
@@ -430,7 +438,13 @@ def cmd_sec(job_path, packet_path, engine_path=None, filled_path=None):
                 tag = "OperatingIncomeLoss" if "operating income" in label else "NetIncomeLoss" if "net income" in label else "Revenues"
                 if "operating income" in label and (an or {}).get("operating_income_basis"):
                     tag = "GrossProfit"  # the company files no operating-income line; the SEC figure was built from these
-                link = (f"https://data.sec.gov/api/xbrl/companyconcept/CIK{int(pk['cik']):010d}/us-gaap/{tag}.json"
+                # IFRS filers (e.g. FRO): link the IFRS line the packet actually compared (Nov 14 2026)
+                taxo = (an or {}).get("taxonomy") or "us-gaap"
+                if taxo != "us-gaap":
+                    k = "operating_income" if "operating income" in label else "net_income" if "net income" in label else "revenue"
+                    tag = ((an or {}).get("tags") or {}).get(k) or {"operating_income": "ProfitLossFromOperatingActivities",
+                                                                    "net_income": "ProfitLoss", "revenue": "Revenue"}[k]
+                link = (f"https://data.sec.gov/api/xbrl/companyconcept/CIK{int(pk['cik']):010d}/{taxo}/{tag}.json"
                         if pk.get("cik") else None)
                 out["serious"].append({"figure": label, "webull": page, "sec": sec, "pctApart": round(d, 1), "secLink": link,
                                        "currency": cur if label.startswith("Fiscal ") else "USD"})
