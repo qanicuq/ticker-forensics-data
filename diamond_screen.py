@@ -206,6 +206,7 @@ def fundamentals(facts):
         "tangible_book": equity - goodwill - intang,
         "ncav": ca - liab - preferred,
         "cffo_ratio": round(cffo_ratio, 2) if cffo_ratio is not None else None,
+        "cffo_avg3": sum(cffo3) / 3 if None not in cffo3 else None,
         "pays_dividend": bool(div.get(fy)),
         "dividends_last": div.get(fy) or 0,
         "shares": shares,
@@ -379,6 +380,8 @@ def main():
             "pb": round(pb, 2) if pb else None, "ptb": round(ptb, 2) if ptb else None,
             "graham_pe_x_pb": round(pe_avg3 * pb, 1) if pb else None,
             "ncav_to_mcap": round(f["ncav"] / mcap, 2),
+            # price to 3-yr average operating cash flow (Dreman's low P/CF); None when cash flow is missing or negative
+            "pcf_avg3": round(mcap / f["cffo_avg3"], 1) if f["cffo_avg3"] and f["cffo_avg3"] > 0 else None,
             "net_net": f["ncav"] > 0 and mcap <= f["ncav"] * 2 / 3,
             "enterprising_tests": tests,
             "enterprising_passed": sum(tests.values()),
@@ -389,15 +392,17 @@ def main():
         }
 
     # 4. Equal-weight rank sum (SKILL.md section 11: keep scoring simple)
-    ranks = [
-        rank({t: v["pe_avg3"] for t, v in final.items()}, higher_is_better=False),
-        rank({t: v["ptb"] for t, v in final.items()}, higher_is_better=False),
-        rank({t: v["cffo_ratio"] for t, v in final.items()}, higher_is_better=True),
-        rank({t: v["ncav_to_mcap"] for t, v in final.items()}, higher_is_better=True),
-    ]
+    pe_r = rank({t: v["pe_avg3"] for t, v in final.items()}, higher_is_better=False)
+    ptb_r = rank({t: v["ptb"] for t, v in final.items()}, higher_is_better=False)
+    pcf_r = rank({t: v["pcf_avg3"] for t, v in final.items()}, higher_is_better=False)
+    ncav_r = rank({t: v["ncav_to_mcap"] for t, v in final.items()}, higher_is_better=True)
+    cffo_r = rank({t: v["cffo_ratio"] for t, v in final.items()}, higher_is_better=True)  # old method, kept only for the paper test
     for t in final:
-        final[t]["rank_sum"] = sum(r[t] for r in ranks)
-    ordered = sorted(final.values(), key=lambda v: v["rank_sum"])
+        final[t]["rank_sum"] = pe_r[t] + ptb_r[t] + pcf_r[t] + ncav_r[t]
+        final[t]["old_rank_sum"] = pe_r[t] + ptb_r[t] + cffo_r[t] + ncav_r[t]
+    # forensic flags gate the ranking (SKILL.md sections 2 and 11): clean stocks first, flagged ones after
+    ordered = sorted(final.values(), key=lambda v: (bool(v["flags"]), v["rank_sum"]))
+    old_ordered = sorted(final.values(), key=lambda v: v["old_rank_sum"])
     shortlist = ordered[:SHORTLIST_SIZE]
 
     form10 = form10_filings()
@@ -436,7 +441,8 @@ def main():
         "run_utc": run_time.isoformat(timespec="minutes"),
         "sources": "SEC EDGAR company facts (fundamentals), yfinance (closing price, volume), SEC exchange list",
         "universe": len(universe), "passed_all": len(final), "skipped_reasons": skipped,
-        "shortlist": shortlist, "not_ranked_no_share_count": unsized, "all_passing": [v["ticker"] for v in ordered], "form10_filings": form10,
+        "shortlist": shortlist, "not_ranked_no_share_count": unsized, "all_passing": [v["ticker"] for v in ordered],
+        "old_method_order": [v["ticker"] for v in old_ordered], "form10_filings": form10,
     }
     (OUT / "diamond_screen.json").write_text(json.dumps(result, indent=1, default=str))
 
@@ -460,19 +466,24 @@ def main():
         "average volume over 50K shares a day; no loss in any of the last 5 years; current ratio of at least 1.5; "
         "long-term debt plus leases no more than 110% of net current assets; price no more than 15 times 3-year average earnings.",
         "",
-        "Then ranked with equal weight on four things: cheapest on 3-year average earnings, cheapest against "
-        "tangible book, cash flow best backing up earnings, and most liquid assets for the price.",
+        "Then ranked with equal weight on four things (SKILL.md section 11): cheapest on 3-year average earnings, "
+        "cheapest against tangible book, cheapest on 3-year average operating cash flow, and most liquid assets for the price. "
+        "Stocks with no red flags come first; stocks with any red flag are ranked the same way but listed after all the clean ones "
+        "(SKILL.md: check the accounts before trusting the numbers).",
+        "",
+        "Is this ranking any good? It is being paper-tested forward against small-cap value and the S&P 500: "
+        "[honest forward test](paper_track.md).",
         "",
         "## Shortlist",
         "",
-        "| # | Ticker | Company | Price | Mkt cap | P/E (3-yr avg) | P/B | P/E × P/B ≤ 22.5? | Graham tests passed | Net-net? | Near 52-wk low? | Neff ratio | Red flags |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| # | Ticker | Company | Price | Mkt cap | P/E (3-yr avg) | P/B | P/CF (3-yr avg) | P/E × P/B ≤ 22.5? | Graham tests passed | Net-net? | Near 52-wk low? | Neff ratio | Red flags |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for i, v in enumerate(shortlist, 1):
         g = v["graham_pe_x_pb"]
         lines.append(
             f"| {i} | **{v['ticker']}** | {v['name']} | ${v['price']:.2f} | {fmt_money(v['market_cap'])} | "
-            f"{v['pe_avg3']} | {v['pb'] if v['pb'] is not None else 'n/a'} | "
+            f"{v['pe_avg3']} | {v['pb'] if v['pb'] is not None else 'n/a'} | {v['pcf_avg3'] if v['pcf_avg3'] is not None else 'n/a'} | "
             f"{'Yes' if g is not None and g <= 22.5 else 'No'} ({g if g is not None else 'n/a'}) | "
             f"{v['enterprising_passed']}/7 | {'Yes' if v['net_net'] else 'No'} | "
             f"{near_low(v['pct_above_52w_low'])} | {v['neff_ratio']} | "

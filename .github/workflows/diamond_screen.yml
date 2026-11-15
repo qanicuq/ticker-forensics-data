@@ -54,6 +54,14 @@ jobs:
                -H "Click: https://github.com/qanicuq/ticker-forensics-data/blob/main/screens/diamond_screen.md" \
                "https://ntfy.sh/$NTFY_TOPIC"
 
+      - name: Update honest forward test
+        run: |
+          python paper_track.py
+          git add screens/
+          git commit -m "screen: paper track update" || echo "No changes"
+          git pull --rebase origin main
+          git push
+
       - name: Alert on failure
         if: failure()
         run: |
