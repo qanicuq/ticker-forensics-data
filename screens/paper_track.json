@@ -1,0 +1,60 @@
+{
+ "cohorts": [
+  {
+   "start": "2026-11-13",
+   "method": "new",
+   "tickers": [
+    "WETH",
+    "IMXI",
+    "SD",
+    "INVA",
+    "YELP",
+    "HRMY",
+    "PRDO",
+    "LZB",
+    "RCMT",
+    "SIGA",
+    "HDSN",
+    "USNA",
+    "SHOE",
+    "UVV",
+    "ORGO",
+    "RES",
+    "PLAB",
+    "BXC",
+    "RAVE",
+    "ETD"
+   ]
+  },
+  {
+   "start": "2026-11-13",
+   "method": "old",
+   "tickers": [
+    "HDSN",
+    "WETH",
+    "USNA",
+    "UVV",
+    "SIGA",
+    "SHOE",
+    "RES",
+    "PLAB",
+    "ORGO",
+    "SD",
+    "BXC",
+    "IMXI",
+    "RAVE",
+    "MLR",
+    "VTSI",
+    "KMT",
+    "INVA",
+    "SCSC",
+    "HRMY",
+    "ETD"
+   ]
+  }
+ ],
+ "versions_tried": 2,
+ "cost_per_side": 0.005,
+ "basket_size": 20,
+ "hold_months": 12
+}
