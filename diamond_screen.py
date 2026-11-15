@@ -271,10 +271,10 @@ def rank(values, higher_is_better):
 
 
 def near_low(pct):
-    """'Yes (+4.2%)' when the price is within 10% of its 52-week low."""
+    """'✅ +4.2%' when the price is within 10% of its 52-week low, else just '+40.8%'."""
     if pct is None:
         return "n/a"
-    return f"{'Yes' if pct <= 10 else 'No'} (+{pct}%)"
+    return f"{'✅ ' if pct <= 10 else ''}+{pct}%"
 
 
 def fmt_money(x):
@@ -460,6 +460,59 @@ def main():
         "",
     ] + ([f"- {c}" for c in changes] or ["- No changes."]) + [
         "",
+        "## Shortlist",
+        "",
+        "Hover over (or tap) the ⓘ next to a column title to see what it means. Full guide: [column guide](#column-guide).",
+        "",
+    ]
+    # column title, plain-English explanation (shown on hover; also listed in the column guide)
+    columns = [
+        ("#", "Rank. 1 = best. Ranked on four things with equal weight: cheapest on 3-year average earnings, cheapest against tangible book, cheapest on 3-year average operating cash flow, and most liquid assets for the price."),
+        ("Ticker", "Stock symbol."),
+        ("Company", "Company name as filed with the SEC."),
+        ("Price", "Last closing price (yfinance)."),
+        ("Mkt cap", "Market cap: price × the share count in SEC filings. Must be under $2B."),
+        ("P/E (3-yr)", "Price ÷ average yearly profit over the last 3 years. Lower = cheaper. Must be 15 or less to make the list."),
+        ("P/B", "Price ÷ book value (assets minus all liabilities). Under 1 = priced below book. The ranking uses tangible book (book minus goodwill and intangibles)."),
+        ("P/CF (3-yr)", "Price ÷ average yearly operating cash flow over the last 3 years. Lower = cheaper (Dreman). n/a = cash flow missing or negative."),
+        ("P/E × P/B", "Graham's combined cheapness test: P/E (3-yr) × P/B should be 22.5 or less. ✅ = passes. The number is the result."),
+        ("Graham", "How many of Graham's 7 enterprising-investor tests it passes (SKILL.md section 3)."),
+        ("Net-net", "✅ = market cap at or below 2/3 of net current assets (current assets minus all liabilities): Graham's deepest bargain."),
+        ("52-wk low", "How far the price is above its lowest price in the past year. ✅ = within 10% (Dreman and Neff hunt among recent losers). n/a = listed under a year."),
+        ("Neff", "Neff ratio = (yearly growth of total earnings over the last 5 annual reports % + dividend yield %) ÷ P/E on the latest year. Higher is better; Neff wanted about twice the market's ratio. Uses total earnings, not per-share, so buybacks or new shares can make it a little off."),
+        ("Red flags", "Number of quick forensic warnings (SKILL.md section 4); details below the tables. A flag means look harder, not automatically avoid."),
+    ]
+    header = "| " + " | ".join(f'{name}<sup>[ⓘ](#column-guide "{tip}")</sup>' for name, tip in columns) + " |"
+    divider = "|" + "---|" * len(columns)
+
+    def row(i, v):
+        g = v["graham_pe_x_pb"]
+        name = re.sub(r"\s*/[A-Z]{2,3}/?$", "", v["name"])  # drop state tags like " /NY" or " /VA/"
+        n = len(v["flags"])
+        return (
+            f"| {i} | **{v['ticker']}** | {name} | ${v['price']:.2f} | {fmt_money(v['market_cap'])} | "
+            f"{v['pe_avg3']} | {v['pb'] if v['pb'] is not None else 'n/a'} | {v['pcf_avg3'] if v['pcf_avg3'] is not None else 'n/a'} | "
+            f"{'✅ ' if g is not None and g <= 22.5 else '❌ '}{g if g is not None else 'n/a'} | "
+            f"{v['enterprising_passed']}/7 | {'✅' if v['net_net'] else '—'} | "
+            f"{near_low(v['pct_above_52w_low'])} | {v['neff_ratio']} | "
+            f"{'none' if not n else f'[⚠️ {n}](#red-flag-details)'} |")
+
+    clean = [(i, v) for i, v in enumerate(shortlist, 1) if not v["flags"]]
+    flagged = [(i, v) for i, v in enumerate(shortlist, 1) if v["flags"]]
+    lines += ["### No red flags", ""]
+    lines += ([header, divider] + [row(i, v) for i, v in clean]) if clean else ["- None this run."]
+    lines += ["", "### With red flags (look harder)", ""]
+    lines += ([header, divider] + [row(i, v) for i, v in flagged]) if flagged else ["- None this run."]
+    lines += [
+        "",
+        "## Red flag details",
+        "",
+    ] + ([f"- **{v['ticker']}** (#{i}): {'; '.join(v['flags'])}" for i, v in flagged] or ["- None."]) + [
+        "",
+        "## Column guide",
+        "",
+    ] + [f"- **{name}**: {tip}" for name, tip in columns] + [
+        "",
         "## How a stock gets on this list",
         "",
         "Must pass all of these (SKILL.md section 3): listed on NYSE, Nasdaq or Cboe; market cap under $2B; "
@@ -473,29 +526,6 @@ def main():
         "",
         "Is this ranking any good? It is being paper-tested forward against small-cap value and the S&P 500: "
         "[honest forward test](paper_track.md).",
-        "",
-        "## Shortlist",
-        "",
-        "| # | Ticker | Company | Price | Mkt cap | P/E (3-yr avg) | P/B | P/CF (3-yr avg) | P/E × P/B ≤ 22.5? | Graham tests passed | Net-net? | Near 52-wk low? | Neff ratio | Red flags |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
-    ]
-    for i, v in enumerate(shortlist, 1):
-        g = v["graham_pe_x_pb"]
-        lines.append(
-            f"| {i} | **{v['ticker']}** | {v['name']} | ${v['price']:.2f} | {fmt_money(v['market_cap'])} | "
-            f"{v['pe_avg3']} | {v['pb'] if v['pb'] is not None else 'n/a'} | {v['pcf_avg3'] if v['pcf_avg3'] is not None else 'n/a'} | "
-            f"{'Yes' if g is not None and g <= 22.5 else 'No'} ({g if g is not None else 'n/a'}) | "
-            f"{v['enterprising_passed']}/7 | {'Yes' if v['net_net'] else 'No'} | "
-            f"{near_low(v['pct_above_52w_low'])} | {v['neff_ratio']} | "
-            f"{'; '.join(v['flags']) or 'none'} |")
-    lines += [
-        "",
-        "Graham tests = the 7 enterprising-investor tests in SKILL.md. Red flags are quick forensic checks "
-        "(SKILL.md section 4); a flag means look harder, not automatically avoid.",
-        "",
-        "Near 52-wk low? = price within 10% of its lowest price in the past year (Dreman and Neff hunt among recent losers). The % is how far above that low it is. n/a = listed under a year.",
-        "",
-        "Neff ratio = (yearly growth of total earnings over the last 5 annual reports % + dividend yield %) ÷ P/E on the latest year. Higher is better; Neff wanted about twice the market's ratio. It uses total earnings, not per-share earnings, so buybacks or new shares can make it a little off.",
         "",
         "## Passed the earnings and balance-sheet tests but not ranked",
         "",
