@@ -256,7 +256,8 @@ def cmd_sec(job_path, packet_path, engine_path=None, filled_path=None):
         return
     out["packet"] = True
     out["market"] = pk.get("market")
-    out["resultsFiled"] = (pk.get("earnings_release") or {}).get("filed")  # newest 8-K item 2.02 (earnings release)  # the S&P 500's P/E and P/B for the "no longer cheap" sell line
+    out["resultsFiled"] = ((pk.get("earnings_release") or {}).get("filed")  # newest 8-K item 2.02 (earnings release)
+                           or (pk.get("latest_results_filing") or {}).get("filed"))  # no release (e.g. WETH): newest 10-Q/10-K  # the S&P 500's P/E and P/B for the "no longer cheap" sell line
 
     gov = pk.get("governance")
     if gov is None:

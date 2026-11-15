@@ -893,13 +893,24 @@ NEWS_QUERIES = [
 # a headline counts only if it names the company, or names the ticker as a stock (short tickers like SMP match unrelated news)
 news_core = " ".join(re.sub(r"\b(inc|incorporated|corp|corporation|co|company|ltd|limited|plc|llc|lp|sa|nv|ag|se|holdings?|group|class [a-z])\b", " ", re.sub(r"[,.]", " ", company_name), flags=re.I).split())
 news_t = re.escape(TICKER)
+CRYPTO_TOKENS = {"WETH", "ETH", "BTC", "WBTC", "SOL", "LINK", "UNI", "DOT", "AAVE", "ADA", "XRP", "DOGE", "AVAX", "ARB", "OP",
+                 "ATOM", "NEAR", "SUI", "TON", "LTC", "BCH", "ETC", "FIL", "SHIB", "PEPE", "USDC", "USDT", "DAI", "CRV", "MKR",
+                 "COMP", "SNX", "LDO", "GRT", "SAND", "MANA", "ALGO", "XLM", "HBAR", "TRX", "BNB", "INJ", "IMX", "STX"}  # tickers that are also crypto tokens
+NEWS_CRYPTO = r"\b(crypto\w*|tokens?|ethereum|ether|bitcoin|btc|eth|defi|blockchain|on-?chain|perpetuals?|collateral|stablecoins?|wallets?|airdrop|staking|dex)\b"
 NEWS_FIN = r"stocks?|shares|earnings|investors?|price target|target|analysts?|rating|upgrades?|downgrades?|buy|sell|valuation|dividend|quarter|Q[1-4]|guidance|outlook|revenue|sales|profit|CEO|CFO|falls|drops|rises|jumps|gains|slides|surges|plunges|tumbles"
 def news_about(title):
     if news_core and re.search(r"\b" + re.escape(news_core) + r"\b", title, re.I):
         return True
     if re.search(r"(\$" + news_t + r"\b|\(" + news_t + r"[):]|:" + news_t + r"\b|\b" + news_t + r"['’]s\b)", title):
         return True
-    return bool(re.search(r"\b" + news_t + r"\b", title) and re.search(r"\b(" + NEWS_FIN + r")\b", title, re.I))
+    if not (re.search(r"\b" + news_t + r"\b", title) and re.search(r"\b(" + NEWS_FIN + r")\b", title, re.I)):
+        return False
+    # a bare ticker that is also a crypto token (WETH = Wrapped Ether) in a crypto headline is not the company, and junk
+    # sites post fake old-quarter headlines ("WETH Q1 1996 Earnings"): drop both (Nov 15 2026)
+    if TICKER.upper() in CRYPTO_TOKENS and re.search(NEWS_CRYPTO, title, re.I):
+        return False
+    years = [int(y) for y in re.findall(r"\b(?:Q[1-4]|FY|fiscal(?: year)?) ?((?:19|20)\d\d)\b", title, re.I)]
+    return not (years and max(years) < datetime.now(timezone.utc).year - 2)
 news_items = []
 news_seen = set()
 news_dropped = 0
@@ -1017,7 +1028,22 @@ try:
         if er_merger:
             er_msg += (f" (merger proxy {er_merger['form']} filed {er_merger['date']}: companies with a pending merger"
                        f" often stop issuing earnings releases, so this may be expected)")
-        packet["errors"].append(er_msg)
+        # some small companies (e.g. WETH) never file an earnings release: their results come only in the 10-Q/10-K,
+        # so the newest of those is recorded for the worker's stale-numbers check (Nov 15 2026)
+        er_docs = er_rec.get("primaryDocument") or []
+        er_q = next((i for i, f in enumerate(er_forms) if f in ("10-Q", "10-K", "10-KT")), None)
+        if er_q is not None and not FOREIGN_FORM:
+            er_q_accn = er_accns[er_q] if er_q < len(er_accns) else ""
+            er_q_doc = er_docs[er_q] if er_q < len(er_docs) else ""
+            packet["latest_results_filing"] = {
+                "form": er_forms[er_q], "filed": er_dates[er_q] if er_q < len(er_dates) else None,
+                "url": f"https://www.sec.gov/Archives/edgar/data/{er_cik}/{er_q_accn.replace('-', '')}/{er_q_doc}"}
+            lrf = packet["latest_results_filing"]
+            packet["notes"].append(er_msg + f". This company reports its results only in its 10-Q/10-K"
+                                   f" filings; the newest is the {lrf['form']} filed {lrf['filed']} ({lrf['url']}),"
+                                   " which is used to check whether the report's figures are out of date.")
+        else:
+            packet["errors"].append(er_msg)
     else:
         er_accn_nd = er_accn.replace("-", "")
         er_index_url = f"https://www.sec.gov/Archives/edgar/data/{er_cik}/{er_accn_nd}/{er_accn}-index.htm"
