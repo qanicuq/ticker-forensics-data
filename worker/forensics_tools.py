@@ -290,10 +290,11 @@ def cmd_sec(job_path, packet_path, engine_path=None, filled_path=None):
                     out["unverified"].append(f"what the 8-K filed {w.get('date')} says (the SEC filing could not be read)")
                     kind = "unclear"
                 key = (item, "finance" if kind == "finance officer departure" else "")
-                groups.setdefault(key, {"issue": iss, "dates": [], "urls": [], "sentences": []})
+                groups.setdefault(key, {"issue": iss, "dates": [], "urls": [], "sentences": [], "kinds": []})
                 groups[key]["dates"].append(w.get("date"))
                 groups[key]["urls"].append(w.get("url"))
                 groups[key]["sentences"].append(w.get("sentence") or "")
+                groups[key]["kinds"].append(kind)
     for (item, sub), g in groups.items():
         detail = "8-K filed " + ", ".join(g["dates"])
         if item == "5.02" and sub == "finance":
@@ -305,9 +306,17 @@ def cmd_sec(job_path, packet_path, engine_path=None, filled_path=None):
                                 "controller is a Financial Shenanigans warning sign). If it was sudden, unexplained or over a "
                                 "disagreement (from the 8-K or news), raise this flag to high.")
         elif item == "5.02":
-            out["add"]["redFlags"].append({"issue": "Executive or director change", "severity": "low", "detail": detail})
+            # the packet already read these 8-Ks: pass on what they say, or the writer tries sec.gov (blocked in the
+            # cloud) and reports the 8-K as unread (HOPE, Nov 19 2026: its Aug 25 8-K was the CEO's contract extension)
+            read = [(d, s) for d, s, k in zip(g["dates"], g["sentences"], g["kinds"]) if s and k == "officer or director change"]
+            said = "; ".join(f"{d}: \"{s}\"" for d, s in read)
+            out["add"]["redFlags"].append({"issue": "Executive or director change", "severity": "low",
+                                           "detail": f"{detail}. {said}".strip() if said else detail})
             out["judge"].append("Executive or director change (8-K 5.02) filed " + ", ".join(f"{d} {u}" for d, u in zip(g["dates"], g["urls"]))
-                                + ": if the CFO left suddenly (from the 8-K or news), raise this flag to high.")
+                                + ": if the CFO left suddenly (from the 8-K or news), raise this flag to high."
+                                + (f" The SEC data packet already read {'this 8-K' if len(read) == 1 else 'these 8-Ks'} and found no finance "
+                                   f"officer leaving; the text it read: {said}. Describe the change from this text; do not call the "
+                                   "8-K unread or ask the reader to check it." if read else ""))
         else:
             out["add"]["redFlags"].append({"issue": g["issue"].split(" (8-K")[0], "severity": "medium", "detail": detail})
     # a significant acquisition or sale (8-K item 2.01, required above about 10% of assets) inside the 12 months

@@ -500,7 +500,7 @@ function engine(D){
     const cands=[["20-day average",s20],["50-day average",s50],["200-day average",s200],["60-day low (support)",lo60]]
       .filter(([,v])=>v!=null&&v<=price-atrV&&v>=floorE).sort((a,b)=>b[1]-a[1]);
     if(cands.length){ entry=cands[0][1]*1.005; entryBasis="Pullback to the "+cands[0][0]+" ($"+fmt(cands[0][1])+")"; }
-    else{ entry=Math.max(price-1.5*atrV,floorE); entryBasis="Pullback of 1.5× a normal day's move (no chart support within 20%)"; }
+    else{ entry=Math.max(price-1.5*atrV,floorE); entryBasis="Pullback of 1.5× a normal day's move (no chart support between one normal day's move and 20% under the price)"; }
     entryType="chart";
     if(V.buyBelow!=null&&V.buyBelow>=floorE&&V.buyBelow>entry){ entry=V.buyBelow; entryType="value"; entryBasis="Value buy-below line (within reach of the price)"; }
   }
