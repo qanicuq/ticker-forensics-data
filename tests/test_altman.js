@@ -86,4 +86,20 @@ t("grey zone: no AVOID from the Altman rule", () => {
 t("banks still get no Altman score", () => { const f = run(D("Banks", 6021)).forensic;
   assert.strictEqual(f.altmanZ, undefined); assert.ok(!f.metrics.some(m => /Altman/.test(m.name))); });
 
+/* ---- regulated utilities get no Altman score (user's decision, Nov 20 2026) ---- */
+t("utility by SEC code 4911: no score, no Altman AVOID, a note says why", () => { const a = run(D("Software", 4911));
+  assert.strictEqual(a.forensic.altmanZ, undefined); assert.ok(!a.redFlags.some(f => /Altman/.test(f.issue)));
+  assert.notStrictEqual(a.verdictWhy, "Distress-zone balance sheet and burning cash");
+  assert.ok(a.value.notes.some(x => x.startsWith("Regulated utility"))); });
+t("utility by name when there is no SEC code; 4950 (waste) is not a utility", () => {
+  for (const s of ["Electric Utilities", "Multiline Utilities", "Natural Gas Utilities", "Water Utilities"]) assert.strictEqual(run(D(s, null)).forensic.altmanZ, undefined, s);
+  assert.ok(run(D("Electric Utilities", 4953)).forensic.altmanZ != null); });
+/* ---- a distress score driven by old losses says so (BB: retained earnings −1.68× assets) ---- */
+t("big accumulated deficit: the flag explains it", () => {
+  const f = run(D("Software", 7372, { bs: { retained_earnings: "-1680" } })).redFlags.find(x => /Altman/.test(x.issue));
+  assert.ok(/Most of this comes from past losses: retained earnings are -1\.68× total assets \(an accumulated deficit of \$1,680\)/.test(f.detail), f.detail); });
+t("small deficit: no extra sentence", () => {
+  const f = run(D("Software", 7372)).redFlags.find(x => /Altman/.test(x.issue));  /* retained earnings −0.5× assets */
+  assert.ok(!/past losses/.test(f.detail)); });
+
 console.log(`\n${n} tests passed`);

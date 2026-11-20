@@ -431,14 +431,19 @@ function engine(D){
   }
   const sic=Number.isInteger(D.sic)?D.sic:null, indName=(prof?.industries||[]).slice(-1)[0]||industry;
   const maker=sic!=null?sic>=2000&&sic<=3999:isMakerByName(indName);
-  const AZ=!isFin&&b0?altman(maker,{wc:ca-cl,re:N(b0.retained_earnings)||0,ebit:F.ebit||0,ta,tl,mcap,rev:F.rev,equity}):null;
+  /* regulated utilities (SEC 4900-4949, or a Webull industry name with "Utilities"): spending more than they earn on
+     plant, paid for with debt and new shares, is how the rate base grows, so Altman's distress test doesn't apply (AVA, POR, Nov 2026) */
+  const isUtil=sic!=null?sic>=4900&&sic<=4949:/utilit/i.test(indName||"");
+  if(isUtil) V.notes.push("Regulated utility: the Altman bankruptcy score doesn't apply (heavy plant spending paid for with debt and new shares is normal, and regulators set its return). Judge the balance sheet on interest coverage and debt instead.");
+  const AZ=!isFin&&!isUtil&&b0?altman(maker,{wc:ca-cl,re:N(b0.retained_earnings)||0,ebit:F.ebit||0,ta,tl,mcap,rev:F.rev,equity}):null;
   if(AZ){
+    const reRaw=N(b0.retained_earnings)||0, reTA=reRaw/ta;
     X.altmanZ=AZ.z; X.altmanVersion=AZ.version; X.altmanZone=AZ.zone; X.altmanBasis=sic!=null?`SEC industry code ${sic}`:`industry name (${indName||"none"})`;
     const lbl=AZ.version==="Z"?"Altman Z-score":"Altman Z″-score", st={distress:"bad",grey:"warn",safe:"ok"}[AZ.zone];
     metric(lbl,fmt(AZ.z,2),st,AZ.version==="Z"
       ?`Bankruptcy-risk score for manufacturers (Altman 1968), chosen by ${X.altmanBasis}: under 1.8 distress, 1.8–3 grey zone, 3 or more safe [outside the books].`
       :`Bankruptcy-risk score for non-manufacturers (Altman Z″: no sales ÷ assets term, book equity instead of market value), chosen by ${X.altmanBasis}: under 1.1 distress, 1.1–2.6 grey zone, 2.6 or more safe [outside the books].`);
-    if(AZ.zone==="distress") flag(`Altman ${AZ.version} in the distress zone`,F.fcf!=null&&F.fcf<0?"high":"medium",`${AZ.version}-score ${fmt(AZ.z,2)} is below ${AZ.version==="Z"?"1.8":"1.1"}.`);
+    if(AZ.zone==="distress") flag(`Altman ${AZ.version} in the distress zone`,F.fcf!=null&&F.fcf<0?"high":"medium",`${AZ.version}-score ${fmt(AZ.z,2)} is below ${AZ.version==="Z"?"1.8":"1.1"}.`+(reTA<-0.5?` Most of this comes from past losses: retained earnings are ${fmt(reTA,2)}× total assets (an accumulated deficit of $${fmtBig(-reRaw)}). Check today's cash, debt and cash flow before reading it as near-term distress.`:""));
   }
   if(F.curRatio!=null&&F.curRatio<0.8&&!isFin) flag("Tight short-term liquidity","medium",`Current assets cover ${fmt(F.curRatio,2)}× the bills due within a year.`);
   /* coverage on the last four quarters, with one-off charges added back (impairments aren't paid in cash) */
