@@ -253,8 +253,9 @@ if FOREIGN_FORM:
 def days(e):
     return (pd.Timestamp(e["end"]) - pd.Timestamp(e["start"])).days
 
-def last_4_quarters(entries):
-    """Return the 4 most recent quarterly values, deriving Q4 = annual - Q1 - Q2 - Q3."""
+def last_4_quarters(entries, dated=False):
+    """Return the 4 most recent quarterly values, deriving Q4 = annual - Q1 - Q2 - Q3.
+    dated=True: [(quarter end, value)], oldest first."""
     by_period = {}
     for e in entries:
         if "start" not in e:
@@ -274,7 +275,7 @@ def last_4_quarters(entries):
     span = (pd.Timestamp(ordered[-1][0][1]) - pd.Timestamp(ordered[0][0][1])).days
     if span > 300:  # gap in the quarters, don't trust the sum
         return None
-    return [v for _, v in ordered]
+    return [(k[1], v) for k, v in ordered] if dated else [v for _, v in ordered]
 
 def split_in_eps(entries):
     """True if a recent EPS period was filed twice with values 1.5x or more apart: a stock split, so the last 4
@@ -351,6 +352,7 @@ def pick_revenue_tag(gaap):
     return max(present, key=lambda t: max(e["end"] for e in gaap[t]["units"]["USD"]))
 
 sec_market_cap = sec_pe = sec_rev_sum = sec_shares_date = None
+sec_q = {}  # SEC's last 4 quarters with their end dates, to roll forward with a newer earnings release
 facts = None
 try:
     facts = sec_facts()
@@ -411,6 +413,7 @@ try:
     rev_rows = gaap[rev_tag]["units"]["USD"] if rev_tag else []
     rev = last_4_quarters(rev_rows) if rev_tag else None
     rev_sum = sum(rev) if rev else None
+    sec_q = {"eps": last_4_quarters(eps_rows(eps_tag), dated=True), "rev": last_4_quarters(rev_rows, dated=True) if rev_tag else None}
     # SEC's company-facts feed can stop before the newest 10-Q/10-K: then read that filing's own figures
     feed_end = lambda rows: max((e["end"] for e in rows if "start" in e), default="")
     nr = NEWEST_REPORT
@@ -420,6 +423,7 @@ try:
         try:
             figs = filing_durations(nr["accn"], [t for t, _ in behind])
             for t, rows in behind:
+                sec_q["eps" if t == eps_tag else "rev"] = None  # the sum came from the filing, not 4 dated quarters
                 v = ttm_from_filing(figs[t], nr["form"], nr["end"], rows)
                 if t == eps_tag:
                     eps_sum = v
@@ -438,6 +442,7 @@ try:
                     rev_sum = None
     if eps_sum is not None and split_in_eps(eps_rows(eps_tag)):
         sec_pe = "split"
+        sec_q["eps"] = None
     elif eps_sum is not None and (quote_price or last_close) and eps_sum > 0:
         sec_pe = round2((quote_price or last_close) / eps_sum)
     elif eps_sum is not None and eps_sum <= 0:
@@ -464,6 +469,57 @@ def release_share_count(text):
     except ValueError:
         return None, None
     return int(m.group(2).replace(",", "")), when
+
+def _release_nums(line):
+    """Numbers printed on a release line, in order: (1.30) is negative; percentages and parts of words or dates are skipped."""
+    out = []
+    for m in re.finditer(r"(\()?(\d[\d,]*(?:\.\d+)?)(\))?(%)?", line or ""):
+        before = line[m.start() - 1] if m.start() else " "
+        after = line[m.end()] if m.end() < len(line) else " "
+        if m.group(4) or before.isalpha() or before in "-/." or after in "-/" or after.isalpha():
+            continue
+        try:
+            v = float(m.group(2).replace(",", ""))
+        except ValueError:
+            continue
+        out.append(-v if m.group(1) and m.group(3) else v)
+    return out
+
+REV_LABELS = {"revenue", "revenues", "total revenue", "total revenues", "net revenue", "net revenues", "total net revenue",
+              "total net revenues", "net sales", "total net sales", "revenue, net", "revenues, net", "sales"}
+
+def roll_ttm(text, quarters, kind):
+    """(12-month total, how) for the window that ends one quarter after SEC's last 4 quarters, else (None, None).
+    Between a results release and its 10-Q, SEC's 4 quarters stop one quarter short, while Webull or yfinance may already
+    count the new quarter (NVDA, Nov 19 2026: SEC $302.97B to Jul 26 vs Webull $361.81B; $302,969M - $57,006M +
+    $115,844M = $361,807M). The release line's first two numbers are taken as the new quarter and the same quarter a
+    year earlier, and used only if that year-ago number equals SEC's own oldest quarter, the one that drops out.
+    quarters: [(end, value)] oldest first; kind: "revenue" or "eps" (diluted)."""
+    if not text or not quarters or len(quarters) != 4 or not quarters[0][1]:
+        return None, None
+    end0, v0 = quarters[0]
+    for i, line in enumerate(text.split("\n"), 1):
+        label = re.split(r"[\d|$(]", line.lstrip("| "), maxsplit=1)[0].strip().rstrip(":").strip().lower()
+        if kind == "revenue":
+            if label not in REV_LABELS:
+                continue
+        elif "diluted" not in label or any(w in label for w in ("share count", "shares", "weighted", "non-gaap", "adjusted")):
+            continue
+        nums = _release_nums(line)
+        if len(nums) < 2:
+            continue
+        cur, ya = nums[0], nums[1]
+        for scale in ((1, 1e3, 1e6) if kind == "revenue" else (1,)):
+            # within the release's rounding: half a unit of its scale ($0.5M in a table of millions), half a cent for EPS
+            if abs(ya * scale - v0) <= (0.5 * scale if kind == "revenue" else 0.005):
+                if kind == "revenue" and cur <= 0:
+                    return None, None
+                new = cur * scale
+                total = sum(v for _, v in quarters) - v0 + new
+                return total, (f"SEC's 4 quarters to {quarters[-1][0]} minus the quarter ending {end0} ({v0:,g}) plus the new "
+                               f"quarter ({new:,g}) from the earnings release, line {i}: \"{line[:120]}\"; the release's "
+                               f"year-ago figure ({ya:,g}) matches SEC's {end0} quarter")
+    return None, None
 
 def compare_field(field, yf_val, sec_val, threshold):
     if yf_val is None or sec_val is None:
@@ -1175,6 +1231,33 @@ if FOREIGN_FORM and packet.get("earnings_release") and (quote_price or last_clos
         cc["mismatches"] = [e for e in cc["mismatches"] if e.get("field") != "market_cap"]
         packet["errors"] = [e for e in packet["errors"] if not e.startswith("cross_check missing market_cap")]
         compare_field("market_cap", yf_market_cap, sec_market_cap, 5)
+# results released but the 10-Q not filed yet: SEC's 4 quarters stop one quarter short, while yfinance (and the page's
+# Webull figures) may already count the new quarter. Roll SEC's window forward with the release's own figures, checked
+# against SEC's year-ago quarter, and record it so the worker compares Webull with the window Webull covers (NVDA, Nov 19 2026)
+_er = packet.get("earnings_release") or {}
+if not FOREIGN_FORM and _er.get("text") and sec_q:
+    rolled = {}
+    if sec_q.get("rev") and sec_rev_sum is not None:
+        v, how = roll_ttm(_er["text"], sec_q["rev"], "revenue")
+        if v is not None:
+            rolled.update(revenue_4q_sum=round2(v), revenue_base_end=sec_q["rev"][-1][0], revenue_how=how)
+    if sec_q.get("eps") and isinstance(sec_pe, (int, float)) and (quote_price or last_close):
+        v, how = roll_ttm(_er["text"], sec_q["eps"], "eps")
+        if v is not None and v > 0:
+            rolled.update(eps_4q_sum=round(v, 4), pe=round2((quote_price or last_close) / v),
+                          eps_base_end=sec_q["eps"][-1][0], eps_how=how)
+    if rolled:
+        rolled["release_filed"] = _er.get("filed")
+        cc = packet["cross_check"]
+        cc["sec_rolled"] = rolled
+        for field in ("pe", "revenue_4q_sum"):
+            for e in [e for e in cc["mismatches"] if e.get("field") == field and field in rolled]:
+                d = pct_diff(e["yfinance"], rolled[field])
+                if d is not None and d <= 2:
+                    cc["mismatches"].remove(e)
+                    cc["matches"].append({**e, "sec_rolled": rolled[field], "pct_diff_rolled": round2(d),
+                                          "basis": "yfinance already counts the quarter in the earnings release; matches SEC's "
+                                                   "4 quarters rolled forward one quarter with that release (see sec_rolled)"})
 # a new listing hasn't filed enough with the SEC yet: those gaps are expected, not errors (the worker still holds the trigger)
 if packet.get("new_listing"):
     _gap = lambda e: e.startswith("sec facts: fewer than 4 quarters") or (e.startswith("cross_check missing ") and e.endswith("sec=None"))

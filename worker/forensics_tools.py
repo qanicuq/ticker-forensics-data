@@ -383,11 +383,22 @@ def cmd_sec(job_path, packet_path, engine_path=None, filled_path=None):
     fin_co = "financial company" in str((A.get("value") or {}).get("method") or "")
     core = ("net income",) if fin_co else ("revenue", "operating income")
     pairs = [("Market cap", num((E.get("quote") or {}).get("marketCap")), sec_val.get("market_cap"))]
+    sec_basis = {}  # figure -> how the SEC side was worked out, when it isn't a plain filed figure
     if fin and cur == "USD" and not foreign and not fin_co:
         ttm_rev = num(fin.get("rev"))
+        sec_ttm = sec_val.get("revenue_4q_sum")
         if FL and FL.get("ttm_rev_before") is not None:
             ttm_rev = FL["ttm_rev_before"]
-        pairs.append(("Trailing 12-month revenue", ttm_rev, sec_val.get("revenue_4q_sum")))
+        else:
+            # results released, 10-Q not filed yet: Webull already counts a quarter after SEC's last 4, so compare it with
+            # SEC's window rolled forward one quarter by the packet from the release itself (NVDA, Nov 19 2026)
+            R = cc.get("sec_rolled") or {}
+            if num(R.get("revenue_4q_sum")) is not None and fin.get("lastQ") and R.get("revenue_base_end") \
+                    and str(fin["lastQ"]) > str(R["revenue_base_end"]):
+                sec_ttm = num(R["revenue_4q_sum"])
+                sec_basis["Trailing 12-month revenue"] = ("SEC's 4 quarters rolled forward one quarter with the earnings release "
+                                                          f"filed {R.get('release_filed')} (the 10-Q isn't filed yet): {R.get('revenue_how')}")
+        pairs.append(("Trailing 12-month revenue", ttm_rev, sec_ttm))
     if fin and an:
         if sec_cur != cur:
             annual_why = f"the SEC figures are in {sec_cur} and Webull's in {cur}"
@@ -437,11 +448,13 @@ def cmd_sec(job_path, packet_path, engine_path=None, filled_path=None):
         c = {"figure": label, "page": page, "sec": sec, "pctApart": round(d, 2)}
         if basis:
             c["basis"] = f"Webull figure {basis}"
+        if label in sec_basis:
+            c["secBasis"] = sec_basis[label]
         out["compared"].append(c)
         if d > 5:
             out["disagreements"] += 1
             out["add"]["redFlags"].append({"issue": "Data sources disagree", "severity": "low",
-                                           "detail": f"{label}: Webull {bigc(page, label)}{' (' + basis + ')' if basis else ''} vs SEC {bigc(sec, label)} ({d:.1f}% apart)"})
+                                           "detail": f"{label}: Webull {bigc(page, label)}{' (' + basis + ')' if basis else ''} vs SEC {bigc(sec, label)}{' (' + sec_basis[label] + ')' if label in sec_basis else ''} ({d:.1f}% apart)"})
             if any(k in label for k in core):
                 worst_core = max(worst_core, d)
                 # serious: a figure the value is built on. No paper-bot trigger until Claude settles which source is right.
