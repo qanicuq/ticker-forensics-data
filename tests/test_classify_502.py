@@ -25,7 +25,15 @@ def test_nov_9_2026_new_chief_accounting_officer():  # the bug: was "finance off
                 "direct or indirect material interest subject to disclosure under Item 404(a) of Regulation S-K. On November 9, "
                 "2026, the Company also announced that, as of the effective date, David Denton, the Company's Executive Vice "
                 "President and Chief Financial Officer, will cease serving as Interim Corporate Controller and principal "
-                "accounting officer.") == "officer or director change"
+                "accounting officer. Biographical Information Mr. McKenzie, 55, retired from the Company in July 2026 and "
+                "has not held another position since his retirement. Before that he served as Vice President, Corporate "
+                "Controller.") == "officer or director change"
+
+def test_departure_after_a_bio_still_caught():  # a real exit stated well after an appointee's bio
+    assert kind("The Company appointed Ann Lee as Chief Operating Officer. Ms. Lee, 48, served as President of "
+                "Acme Corp. from 2019 to 2025. " + "She holds degrees from two universities and sits on a charity board. " * 8
+                + "Separately, John Roe informed the Company of his decision to resign as Chief Financial Officer, "
+                "effective December 31, 2026.") == "finance officer departure"
 
 def test_jun_23_2026_cfo_steps_down_still_departure():
     assert kind("The Company announced the appointment of David Denton as Executive Vice President and Chief Financial "

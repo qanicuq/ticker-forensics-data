@@ -538,10 +538,15 @@ def classify_502(html_text):
     # a finance role within ~300 characters before (or 100 after) a leaving word; not sentence splits, which
     # break on "Inc." and similar
     appointed = re.search(r"\b(?:appoint|named)", body)
+    # a new officer's biography ("Mr. McKenzie, 55, retired from the company in July 2026 ...") is career history,
+    # not someone leaving: skip leaving words within 400 characters after a "name, age," biography opening
+    bios = [b.end() for b in re.finditer(r"\b(?:mr|ms|mrs|dr)\.\s+[a-z'’-]+,\s+(?:age\s+)?\d{2},", body)]
     for m in re.finditer(r"\b(?:" + "|".join(re.escape(w) for w in LEAVING) + ")", body):
         # an interim holder stepping aside because someone was appointed is a handover, not a departure (NKE 8-K
         # Nov 9 2026: the CFO "will cease serving as interim corporate controller" as a new chief accounting officer starts)
         if appointed and "interim" in body[m.end():m.end() + 60]:
+            continue
+        if any(0 <= m.start() - b <= 400 for b in bios):
             continue
         win = body[max(0, m.start() - 300):m.end() + 100]
         if any(r in win for r in FINANCE_ROLES) or re.search(r"\b(?:cfo|cao)\b", win):
