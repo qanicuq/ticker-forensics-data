@@ -95,3 +95,4 @@ date,ticker,verdict,confidence,price,entry,target,stop
 2026-11-19,NVDA,AVOID,60,145.98,,,
 2026-11-19,NKE,WATCH,65,34.33,32.13,38.35,29.02
 2026-11-19,HOPE,WATCH,65,12.14,11.61,13.01,10.91
+2026-11-20,SD,AVOID,80,11.94,,,
