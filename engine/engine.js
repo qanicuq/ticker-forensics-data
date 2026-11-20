@@ -26,6 +26,23 @@ const W={mos:.2,forensic:.2,strength:.2,price:.2,owners:.2};
 const CYCLICAL=/oil|gas|energy|drill|petrol|steel|metal|mining|gold|copper|alumin|chemical|auto|semiconductor|airline|homebuild|construction|shipping|marine|paper|forest|commodit|machinery|trucking|coal|fertili/i;
 const TECH=/semiconductor|software|technolog|electronic|computer|hardware/i;
 const FINANCIAL=/bank|insur|financ|credit|capital markets|asset management|reit|real estate investment|mortgage|thrift|brokerage/i;
+/* Altman bankruptcy score [outside the books]. Manufacturers (SEC industry code 2000-3999) get the original 1968 Z;
+   every other non-financial company gets Altman's Z″ for non-manufacturers, which drops sales ÷ assets and uses book
+   equity, so a company is not judged against a factory benchmark (SD, an oil producer, Nov 2026). Without an SEC code
+   (the page has no data packet) the Webull industry name decides. Banks and insurers get no score. */
+const MAKER=/semiconductor|electronic (equipment|components)|computer hardware|phones|household electronics|communications & networking|office equipment|machinery|electrical (components|equipment)|aerospace|defense|auto & truck|auto, truck|automobiles|tires|rubber|shipbuild|chemical|pharma|biotech|medical (equipment|supplies)|advanced medical|food processing|beverage|brewer|distiller|tobacco|textile|apparel|footwear|paper|packaging|construction materials|steel|alumin|household products|personal products|leisure products|toys|recreational products|home furnishing|appliances|refining/i;
+function isMakerByName(name){ return !!name&&MAKER.test(name)&&!/retail|distribut|wholesale/i.test(name); }
+function altman(maker,{wc,re,ebit,ta,tl,mcap,rev,equity}){
+  if(!(ta>0)||!(tl>0)) return null;
+  if(maker){
+    if(!(mcap>0)||!rev) return null;
+    const z=1.2*(wc/ta)+1.4*(re/ta)+3.3*(ebit/ta)+0.6*(mcap/tl)+1.0*(rev/ta);
+    return {z,version:"Z",zone:z<1.8?"distress":z<3?"grey":"safe"};
+  }
+  if(equity==null) return null;
+  const z=6.56*(wc/ta)+3.26*(re/ta)+6.72*(ebit/ta)+1.05*(equity/tl);
+  return {z,version:"Z″",zone:z<1.1?"distress":z<2.6?"grey":"safe"};
+}
 const CAT_NOTES={
   "Asset play":"Valued on what it owns, not what it earns. Check the assets are real and someone can unlock them (Lynch, Graham net-nets).",
   "Turnaround":"Bought for recovery. The balance sheet must survive until it happens; check debt, cash burn and what is being fixed (Lynch).",
@@ -35,7 +52,7 @@ const CAT_NOTES={
   "Slow grower":"Owned mainly for dividends and steadiness. Pay no more than value with zero growth (Lynch, Greenwald)."
 };
 
-/* D = {sym,cat,s (snapshot),bars,prof,incQ,incA,cfQ,cfA,bsQ,bsA,rate,tgt,alert,ins,inst,tsy,peersPE,peersPB,missing:[]} (raw tool payloads) */
+/* D = {sym,cat,s (snapshot),bars,prof,incQ,incA,cfQ,cfA,bsQ,bsA,rate,tgt,alert,ins,inst,tsy,peersPE,peersPB,sic,missing:[]} (raw tool payloads; sic = SEC industry code from the data packet, if any) */
 function engine(D){
   let s=D.s; const sym=D.sym, missing=D.missing||[];
   /* ---- price history and technicals ---- */
@@ -412,11 +429,16 @@ function engine(D){
       }
     }
   }
-  if(!isFin&&b0&&ta&&tl&&mcap&&F.rev){
-    const re=N(b0.retained_earnings)||0;
-    X.altmanZ=1.2*((ca-cl)/ta)+1.4*(re/ta)+3.3*((F.ebit||0)/ta)+0.6*(mcap/tl)+1.0*(F.rev/ta);
-    const st=X.altmanZ<1.8?"bad":X.altmanZ<3?"warn":"ok"; metric("Altman Z-score",fmt(X.altmanZ,2),st,"Bankruptcy-risk score: under 1.8 distress, 1.8–3 grey zone, over 3 safe [outside the books].");
-    if(st==="bad") flag("Altman Z in the distress zone",F.fcf!=null&&F.fcf<0?"high":"medium",`Z-score ${fmt(X.altmanZ,2)} is below 1.8.`);
+  const sic=Number.isInteger(D.sic)?D.sic:null, indName=(prof?.industries||[]).slice(-1)[0]||industry;
+  const maker=sic!=null?sic>=2000&&sic<=3999:isMakerByName(indName);
+  const AZ=!isFin&&b0?altman(maker,{wc:ca-cl,re:N(b0.retained_earnings)||0,ebit:F.ebit||0,ta,tl,mcap,rev:F.rev,equity}):null;
+  if(AZ){
+    X.altmanZ=AZ.z; X.altmanVersion=AZ.version; X.altmanZone=AZ.zone; X.altmanBasis=sic!=null?`SEC industry code ${sic}`:`industry name (${indName||"none"})`;
+    const lbl=AZ.version==="Z"?"Altman Z-score":"Altman Z″-score", st={distress:"bad",grey:"warn",safe:"ok"}[AZ.zone];
+    metric(lbl,fmt(AZ.z,2),st,AZ.version==="Z"
+      ?`Bankruptcy-risk score for manufacturers (Altman 1968), chosen by ${X.altmanBasis}: under 1.8 distress, 1.8–3 grey zone, 3 or more safe [outside the books].`
+      :`Bankruptcy-risk score for non-manufacturers (Altman Z″: no sales ÷ assets term, book equity instead of market value), chosen by ${X.altmanBasis}: under 1.1 distress, 1.1–2.6 grey zone, 2.6 or more safe [outside the books].`);
+    if(AZ.zone==="distress") flag(`Altman ${AZ.version} in the distress zone`,F.fcf!=null&&F.fcf<0?"high":"medium",`${AZ.version}-score ${fmt(AZ.z,2)} is below ${AZ.version==="Z"?"1.8":"1.1"}.`);
   }
   if(F.curRatio!=null&&F.curRatio<0.8&&!isFin) flag("Tight short-term liquidity","medium",`Current assets cover ${fmt(F.curRatio,2)}× the bills due within a year.`);
   /* coverage on the last four quarters, with one-off charges added back (impairments aren't paid in cash) */
@@ -461,7 +483,7 @@ function engine(D){
   const mosScore=V.mos==null||!V.fit?null:Math.round(clamp(40+V.mos*120));
   let forensicScore=100-25*high-12*med-4*low; if(X.piotroski!=null) forensicScore+=(X.piotroski-5)*4; forensicScore=Math.round(clamp(forensicScore));
   const st=[];
-  if(X.altmanZ!=null) st.push(X.altmanZ>=3?85:X.altmanZ>=1.8?55:15);
+  if(X.altmanZone) st.push(X.altmanZone==="safe"?85:X.altmanZone==="grey"?55:15);
   if(F.curRatio!=null&&!isFin) st.push(F.curRatio>=1.5?80:F.curRatio>=1?55:25);
   if(X.grahamStrength!=null) st.push(X.grahamStrength?80:40);
   if(X.coverage!=null) st.push(X.coverage>=5?85:X.coverage>=2?55:20);
@@ -475,7 +497,7 @@ function engine(D){
   if(high>=2){ verdict="AVOID"; why=`${high} serious red flags`; }
   else if(V.iv==null){ verdict="AVOID"; why="Earnings and assets don't support a value"; }
   else if(!V.fit){ verdict="WATCH"; why=V.ratio<0.25?"Value methods can't explain this price":"Estimate looks too good: check the data"; }
-  else if(X.altmanZ!=null&&X.altmanZ<1.8&&F.fcf!=null&&F.fcf<0){ verdict="AVOID"; why="Distress-zone balance sheet and burning cash"; }
+  else if(X.altmanZone==="distress"&&F.fcf!=null&&F.fcf<0){ verdict="AVOID"; why="Distress-zone balance sheet and burning cash"; }
   else if(total<35){ verdict="AVOID"; why="Weak on value, quality and strength together"; }
   else if(V.mos>=REQ_MOS&&high===0&&total>=55){ verdict="BUY"; why=`Price is ${pc(V.mos)} below estimated value`; }
   else { verdict="WATCH"; why=V.mos<REQ_MOS?`Needs a ${pc(REQ_MOS)} margin of safety; buy below $${fmt(V.buyBelow)}`:high?"A serious red flag needs checking first":"Mixed quality"; }
@@ -593,4 +615,4 @@ function engine(D){
       analystView,catalysts:nextE?[`Earnings on ${nextE}`]:[],risks:flags.map(f=>f.issue),
       whatChangesTheCall:[newsDrop&&verdict!=="AVOID"?`2–4 weeks passing after the ${newsDrop.date} drop with the value intact`:"",verdict!=="AVOID"&&entry<price?`Price pulling back to $${fmt(entry)} (the realistic entry)`:"",V.buyBelow&&V.buyBelow<entry?`Price falling below $${fmt(V.buyBelow)} (the value buy-below)`:"",...exitPlan.thesisBreak.slice(0,2),"Filings and news the quick check can't see: run the full analysis"].filter(Boolean)}};
 }
-if(typeof module!=="undefined") module.exports={engine,findArr,N};
+if(typeof module!=="undefined") module.exports={engine,findArr,N,altman,isMakerByName};

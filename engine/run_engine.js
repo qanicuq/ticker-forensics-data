@@ -10,8 +10,8 @@
      rating.json  target.json  alert.json
      peers_pe.json  peers_pb.json   (optional: get_stock_industry_comparison sorted by PE_TTM and PB_RATIO)
    A missing or unreadable file is listed in "missing". The 10-year Treasury yield comes from the
-   SEC packet (macro.10y_treasury), and so does the exchange rate for companies reporting in another
-   currency (fx). Insider and institutional data need Alpha Vantage, which only
+   SEC packet (macro.10y_treasury), and so do the exchange rate for companies reporting in another
+   currency (fx) and the SEC industry code (sic). Insider and institutional data need Alpha Vantage, which only
    the page has, so they are always listed as missing here. */
 const fs = require("fs"), path = require("path");
 const { engine, findArr } = require("./engine.js");
@@ -28,9 +28,10 @@ if (!snap || !snap.length) { console.error(`No snapshot with a price in ${dir}/s
 const bars = read("bars.json");
 if (bars == null) { console.error(`No price bars in ${dir}/bars.json`); process.exit(1); }
 
-let tsy = null, fx;
+let tsy = null, fx, sic = null;
 if (packetPath) { try { const pk = JSON.parse(fs.readFileSync(packetPath, "utf8")); const t = pk.macro?.["10y_treasury"]; if (t && t.value != null) tsy = [{ date: t.date, value: t.value }];
-  if (pk.fx && pk.fx.usd_per_unit > 0) fx = pk.fx.usd_per_unit; } catch {} }
+  if (pk.fx && pk.fx.usd_per_unit > 0) fx = pk.fx.usd_per_unit;
+  if (Number.isInteger(pk.sic)) sic = pk.sic; } catch {} }
 
 const D = {
   sym: sym.toUpperCase(), cat, s: snap[0], bars,
@@ -44,7 +45,7 @@ const D = {
   rate: req("analyst rating", "rating.json"),
   tgt: req("analyst target price", "target.json"),
   alert: req("earnings alert", "alert.json"),
-  ins: null, inst: null, tsy, missing, fx,
+  ins: null, inst: null, tsy, missing, fx, sic,  /* SEC industry code: picks Altman Z (manufacturers) or Z″ */
   peersPE: read("peers_pe.json"), peersPB: read("peers_pb.json")  /* optional: industry rank */
 };
 missing.push("insider trades (Alpha Vantage)", "institutional ownership (Alpha Vantage)");
