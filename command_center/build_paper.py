@@ -31,7 +31,12 @@ def pct(value, start):
 
 def trigger_alerts(base):
     rep = read(base, "trigger-alerts", "REPORT.md")
-    start = float(re.search(r"STARTING_CASH\s*=\s*([\d.]+)", read(base, "trigger-alerts", "common.py")).group(1))
+    common = read(base, "trigger-alerts", "common.py")
+    start = float(re.search(r"^STARTING_CASH\s*=\s*([\d.]+)", common, re.M).group(1))
+    # The separate $5,000 options account (added 2026-11-16) is new money, not profit:
+    # count it in the starting amount once the report shows an "Option cash" line.
+    if re.search(r"Option cash: \$", rep):
+        start += float(re.search(r"^OPTION_STARTING_CASH\s*=\s*([\d.]+)", common, re.M).group(1))
     asof = re.search(r"# Report (\d{4}-\d\d-\d\d \d\d:\d\d)", rep).group(1)
     equity = float(re.search(r"Equity: \$([\d,.]+)", rep).group(1).replace(",", ""))
     pos = [{"t": m.group(1), "pct": float(m.group(2))}
