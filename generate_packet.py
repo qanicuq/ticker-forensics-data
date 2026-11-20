@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -536,7 +537,12 @@ def classify_502(html_text):
     body = re.sub(r"^[^a-z]*departure of directors.*?compensatory arrangements of certain officers\.?", "", body).strip()
     # a finance role within ~300 characters before (or 100 after) a leaving word; not sentence splits, which
     # break on "Inc." and similar
+    appointed = re.search(r"\b(?:appoint|named)", body)
     for m in re.finditer(r"\b(?:" + "|".join(re.escape(w) for w in LEAVING) + ")", body):
+        # an interim holder stepping aside because someone was appointed is a handover, not a departure (NKE 8-K
+        # Nov 9 2026: the CFO "will cease serving as interim corporate controller" as a new chief accounting officer starts)
+        if appointed and "interim" in body[m.end():m.end() + 60]:
+            continue
         win = body[max(0, m.start() - 300):m.end() + 100]
         if any(r in win for r in FINANCE_ROLES) or re.search(r"\b(?:cfo|cao)\b", win):
             return "finance officer departure", body[max(0, m.start() - 200):m.end() + 80].strip()
@@ -837,8 +843,19 @@ try:
         "CPIAUCSL": "cpi_yoy_pct",
         "UNRATE": "unemployment",
     }
+    # each rate is fetched on its own, with 2 retries: one failed call (NKE, Nov 19 2026: "ValueError: None" on the
+    # 10-year rate) used to stop the loop and drop every rate after it
     for code, name in series.items():
-        s = fred.get_series(code)
+        s = None
+        for attempt in range(3):
+            try:
+                s = fred.get_series(code)
+                break
+            except Exception as e:
+                if attempt == 2:
+                    packet["errors"].append(f"fredapi {code}: {type(e).__name__}: {str(e)[:120]}")
+                else:
+                    time.sleep(3 * (attempt + 1))
         if s is not None and not s.empty:
             s = s.dropna()
             latest = s.iloc[-1]

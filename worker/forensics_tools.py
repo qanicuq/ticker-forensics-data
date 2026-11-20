@@ -489,7 +489,9 @@ def cmd_sec(job_path, packet_path, engine_path=None, filled_path=None):
         if abs(pk_rf - rf) > 0.0025 and abs(max(0.08, pk_rf + prem) - max(0.08, rf + prem)) > 1e-9:
             out["unverified"].append(f"the 10-year Treasury rate (report {rf * 100:.2f}% dated {V.get('rfDate')}, "
                                      f"SEC packet {pk_rf * 100:.2f}% dated {t10.get('date')})")
-    elif rf is not None and max(0.08, rf + prem) > 0.08:
+    elif rf is not None:
+        # no packet rate means the report's rate is unchecked, even under the 8% floor: the engine's 4.5% fallback
+        # looked moot for NKE (Nov 19 2026) while the real 5.07% put the cost of capital above 8%
         out["unverified"].append(f"the 10-year Treasury rate (report {rf * 100:.2f}%; the SEC packet had no rate to check it against)")
     def short(fig):  # "Fiscal 2026-05-31 operating income" -> "annual operating income"
         return ("annual " + fig.split(" ", 2)[2]) if fig.startswith("Fiscal ") else fig.lower()
@@ -830,6 +832,11 @@ def cmd_finalize(job_path, patch_path, sec_path, engine_path=None, filled_path=N
              "engine": {"__delete__": True}, "quote": E.get("quote"), "tech": E.get("tech"), "chart": E.get("chart"),
              "filings": filings, "missing": missing, "analysis": A,
              "dataThrough": (E.get("fin") or {}).get("lastQ")}
+    # a start time later than the finish is impossible (NKE, FMAO, HOPE, NVDA on Nov 19 2026 got round, guessed
+    # start times 20-40 minutes after they finished): drop it rather than show a wrong one
+    st = num(job.get("startedAt"))
+    if st is not None and st > t:
+        final["startedAt"] = {"__delete__": True}
     fl = S.get("filled")
     if fl:
         final["filledQuarter"] = {"period_end": fl.get("period_end"), "filed": fl.get("filed"), "url": fl.get("url"),
