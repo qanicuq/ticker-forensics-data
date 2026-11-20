@@ -233,7 +233,12 @@ def foreign_annual_form():
     email = os.environ.get("SEC_IDENTITY_EMAIL", "user@example.com")
     r = requests.get(f"https://data.sec.gov/submissions/CIK{cik:010d}.json", headers={"User-Agent": f"qanicuq {email}"}, timeout=30)
     r.raise_for_status()
-    rec = r.json().get("filings", {}).get("recent", {})
+    sub = r.json()
+    # SEC industry code: the engine scores manufacturers (2000-3999) with Altman Z, everyone else with Z″
+    sic = str(sub.get("sic") or "").strip()
+    packet["sic"] = int(sic) if sic.isdigit() else None
+    packet["sic_description"] = sub.get("sicDescription") or None
+    rec = sub.get("filings", {}).get("recent", {})
     forms = rec.get("form", [])
     NEWEST_REPORT = next(({"form": f, "accn": a, "end": d} for f, a, d in
                           zip(forms, rec.get("accessionNumber", []), rec.get("reportDate", [])) if f in ("10-Q", "10-K") and d), None)
