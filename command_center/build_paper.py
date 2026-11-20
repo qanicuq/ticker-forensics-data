@@ -41,10 +41,16 @@ def trigger_alerts(base):
     equity = float(re.search(r"Equity: \$([\d,.]+)", rep).group(1).replace(",", ""))
     pos = [{"t": m.group(1), "pct": float(m.group(2))}
            for m in re.finditer(r"^- (\S+) entry .*? P/L (-?[\d.]+)%", rep, re.M)]
-    n = len(pos)
+    # Count every line under "## Open trades" (stocks AND option trades); pos above is stocks only.
+    sec = re.search(r"^## Open trades\n(.*?)(?=^## |\Z)", rep, re.M | re.S)
+    n = len(re.findall(r"^- ", sec.group(1), re.M)) if sec else len(pos)
+    n_opt = n - len(pos)
+    sub = (f"{n} trade{'s' if n != 1 else ''} open" if n else "No open trades")
+    if n_opt > 0:
+        sub += f" ({len(pos)} stock{'s' if len(pos) != 1 else ''}, {n_opt} option{'s' if n_opt != 1 else ''})"
     return {"name": "Trigger Alerts", "value": equity, "start": start, "pct": pct(equity, start),
             "bench": None, "asof": asof + " NY",
-            "sub": f"{n} trade{'s' if n != 1 else ''} open" if n else "No open trades",
+            "sub": sub,
             "link": f"{GH}/trigger-alerts/blob/main/REPORT.md"}, pos, asof + " NY"
 
 
