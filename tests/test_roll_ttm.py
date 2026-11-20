@@ -27,7 +27,7 @@ def test_nvda_revenue_rolls_to_webull():
     v, how = roll_ttm(NVDA_TEXT, REV_Q, "revenue")
     assert sum(x for _, x in REV_Q) == 302969e6
     assert v == 361807e6  # Webull's figure exactly
-    assert "57,006" in how and "115,844" in how
+    assert "($57,006,000,000)" in how and "($115,844,000,000)" in how and "= $361,807,000,000" in how
 
 
 def test_nvda_eps_rolls_to_yfinance_pe():

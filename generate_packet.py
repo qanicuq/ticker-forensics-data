@@ -516,9 +516,10 @@ def roll_ttm(text, quarters, kind):
                     return None, None
                 new = cur * scale
                 total = sum(v for _, v in quarters) - v0 + new
-                return total, (f"SEC's 4 quarters to {quarters[-1][0]} minus the quarter ending {end0} ({v0:,g}) plus the new "
-                               f"quarter ({new:,g}) from the earnings release, line {i}: \"{line[:120]}\"; the release's "
-                               f"year-ago figure ({ya:,g}) matches SEC's {end0} quarter")
+                f = (lambda x: f"${x:,.0f}") if kind == "revenue" else (lambda x: f"${x:.2f}")
+                return total, (f"SEC's 4 quarters to {quarters[-1][0]} ({f(sum(v for _, v in quarters))}) minus the quarter "
+                               f"ending {end0} ({f(v0)}) plus the new quarter ({f(new)}) = {f(total)}, from the earnings "
+                               f"release, line {i}: \"{line[:120]}\"; the release's year-ago figure matches SEC's {end0} quarter")
     return None, None
 
 def compare_field(field, yf_val, sec_val, threshold):
