@@ -349,7 +349,7 @@ def pick_revenue_tag(gaap):
         return None
     return max(present, key=lambda t: max(e["end"] for e in gaap[t]["units"]["USD"]))
 
-sec_market_cap = sec_pe = sec_rev_sum = None
+sec_market_cap = sec_pe = sec_rev_sum = sec_shares_date = None
 facts = None
 try:
     facts = sec_facts()
@@ -369,6 +369,7 @@ try:
             stale_end = stale_end or latest_end
             continue
         total_shares = sum(e["val"] for e in latest if e["end"] == latest_end)  # sums share classes
+        sec_shares_date = latest_end
         break
     if total_shares is None:
         # companies with two share classes (e.g. Nike) now file the cover-page count per class, which SEC's
@@ -386,7 +387,7 @@ try:
                 try:  # better: the same filing's cover page, summed over share classes
                     cov, cov_date = cover_shares(newest["accn"])
                     if cov:
-                        total_shares = cov
+                        total_shares, sec_shares_date = cov, cov_date
                         packet["sec_shares_basis"] = (f"cover-page shares outstanding on {cov_date}, all share classes, "
                                                       f"from the {newest.get('form')} filed {newest.get('filed')}")
                 except Exception as e:
@@ -448,6 +449,20 @@ except StopIteration:
     pass
 except Exception as e:
     packet["errors"].append(f"sec facts: {type(e).__name__}: {str(e)[:120]}")
+
+def release_share_count(text):
+    """(shares, ISO date) from a results release's line "the total number of shares issued and outstanding as of
+    <date> was <N>", else (None, None). A foreign filer's SEC share count comes only from its yearly 20-F cover, so for
+    a company issuing shares (NBIS, Nov 19 2026: 253.0M at Dec 31 2025 vs 292.9M at Sep 30 2026) it goes out of date."""
+    m = re.search(r"total\s+number\s+of\s+shares\s+issued\s+and\s+outstanding\s+as\s+of\s+"
+                  r"([A-Z][a-z]+\s+\d{1,2},\s*\d{4})\s+was\s+([\d,]+)", text or "")
+    if not m:
+        return None, None
+    try:
+        when = datetime.strptime(re.sub(r"\s+", " ", m.group(1)).replace(", ", ","), "%B %d,%Y").date().isoformat()
+    except ValueError:
+        return None, None
+    return int(m.group(2).replace(",", "")), when
 
 def compare_field(field, yf_val, sec_val, threshold):
     if yf_val is None or sec_val is None:
@@ -1126,6 +1141,18 @@ try:
             }
 except Exception as e:
     packet["errors"].append(f"earnings release: {type(e).__name__}: {str(e)[:120]}")
+if FOREIGN_FORM and packet.get("earnings_release") and (quote_price or last_close):
+    rel_shares, rel_date = release_share_count(packet["earnings_release"].get("text"))
+    if rel_shares and (sec_shares_date is None or rel_date > sec_shares_date):
+        sec_market_cap = round2(rel_shares * (quote_price or last_close))
+        packet["sec_shares_basis"] = (f"{rel_shares:,} shares outstanding on {rel_date}, all share classes, from the 6-K"
+                                      f" results release filed {packet['earnings_release'].get('filed')}"
+                                      + (f" (newer than the annual report's count of {sec_shares_date})" if sec_shares_date else ""))
+        cc = packet["cross_check"]
+        cc["matches"] = [e for e in cc["matches"] if e.get("field") != "market_cap"]
+        cc["mismatches"] = [e for e in cc["mismatches"] if e.get("field") != "market_cap"]
+        packet["errors"] = [e for e in packet["errors"] if not e.startswith("cross_check missing market_cap")]
+        compare_field("market_cap", yf_market_cap, sec_market_cap, 5)
 # a new listing hasn't filed enough with the SEC yet: those gaps are expected, not errors (the worker still holds the trigger)
 if packet.get("new_listing"):
     _gap = lambda e: e.startswith("sec facts: fewer than 4 quarters") or (e.startswith("cross_check missing ") and e.endswith("sec=None"))
