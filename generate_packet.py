@@ -579,6 +579,8 @@ FINANCE_ROLES = ("chief financial officer", "chief accounting officer", "princip
 LEAVING = ("resign", "retire", "depart", "step down", "stepping down", "will leave", "leaving", "terminat", "separat",
            "transition", "step away", "stepping away", "succeed", "successor", "replace", "cease")
 CHANGE = LEAVING + ("appoint", "elect", "named", "promot", "successor")
+INTERNAL_MOVE = ("accepted a new position", "accepted a new role", "new position within", "new role within",
+                 "will transition into", "non-executive officer position")
 
 def classify_502(html_text):
     """Item 5.02 covers officer/director changes AND pay plans. Read the item's own text (not its standard heading,
@@ -609,6 +611,11 @@ def classify_502(html_text):
         if appointed and "interim" in body[m.end():m.end() + 60]:
             continue
         if any(0 <= m.start() - b <= 400 for b in bios):
+            continue
+        # a finance officer moving to another job inside the company is a handover, not a departure (ETN 8-K
+        # Oct 5 2026: the controller "accepted a new position" and moved to a finance job in the Electrical business)
+        after = body[m.start():m.end() + 400]
+        if any(p in after for p in INTERNAL_MOVE) and "retire" not in after:
             continue
         win = body[max(0, m.start() - 300):m.end() + 100]
         if any(r in win for r in FINANCE_ROLES) or re.search(r"\b(?:cfo|cao)\b", win):
@@ -684,6 +691,7 @@ ANNUAL_TAGS = {
     "revenue_total": ["Revenues"],
     "revenue_contract": ["RevenueFromContractWithCustomerExcludingAssessedTax", "RevenueFromContractWithCustomerIncludingAssessedTax"],
     "gross_profit": ["GrossProfit"],
+    "cost_of_revenue": ["CostOfRevenue", "CostOfGoodsAndServicesSold", "CostOfGoodsSold"],
     "operating_expenses": ["OperatingExpenses", "CostsAndExpenses"],
     "sga": ["SellingGeneralAndAdministrativeExpense"],
     "research_development": ["ResearchAndDevelopmentExpense", "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost"],
@@ -706,6 +714,7 @@ IFRS_TAGS = {
     "revenue_total": ["Revenue"],
     "revenue_contract": ["RevenueFromContractsWithCustomers"],
     "gross_profit": ["GrossProfit"],
+    "cost_of_revenue": [],
     "operating_expenses": [],
     "sga": ["SellingGeneralAndAdministrativeExpense"],
     "research_development": ["ResearchAndDevelopmentExpense"],
@@ -878,6 +887,12 @@ try:
         built2 = [y for y, pt in an["pretax_income"].items() if y not in oi and nonop.get(y) is not None] if tax_name == "us-gaap" else []
         for y in built2:
             oi[y] = round2(an["pretax_income"][y] - nonop[y])
+        # last resort, no gross-profit or non-operating line (e.g. Eaton, whose operating-income tag stops at 2019):
+        # revenue minus cost of revenue minus selling/admin and R&D
+        cost = an.get("cost_of_revenue") or {}
+        built3 = [y for y in an["revenue"] if y not in oi and cost.get(y) is not None and an["sga"].get(y) is not None] if tax_name == "us-gaap" else []
+        for y in built3:
+            oi[y] = round2(an["revenue"][y] - cost[y] - an["sga"][y] - (rd.get(y) or 0))
         an["operating_income"] = dict(sorted(oi.items(), reverse=True))
         if built:
             an["operating_income_basis"] = ("built from SEC gross profit minus selling and admin" + (" minus R&D" if rd else "")
@@ -887,6 +902,11 @@ try:
             an["operating_income_basis"] = ((an["operating_income_basis"] + "; ") if built else "") + (
                 "built from SEC profit before tax minus non-operating income for fiscal years ending "
                 + ", ".join(sorted(built2, reverse=True)) + " (no operating-income or gross-profit line filed)")
+        if built3:
+            an["operating_income_basis"] = ((an["operating_income_basis"] + "; ") if (built or built2) else "") + (
+                "built from SEC revenue minus cost of revenue minus selling and admin" + (" minus R&D" if rd else "")
+                + " for fiscal years ending " + ", ".join(sorted(built3, reverse=True))
+                + " (no operating-income, gross-profit or non-operating line filed)")
         packet["annual"]["note"] = (f"Fiscal years from {FOREIGN_FORM or '10-K'} XBRL ({tax_name}), in {cur_unit}, newest first. "
                                     "capex and acquisitions are cash paid (positive).")
         packet["annual"]["currency"] = cur_unit

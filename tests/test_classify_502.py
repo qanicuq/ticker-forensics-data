@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parent.parent
 src = (ROOT / "generate_packet.py").read_text()
 tree = ast.parse(src).body
 keep = [n for n in tree if (isinstance(n, ast.FunctionDef) and n.name == "classify_502") or
-        (isinstance(n, ast.Assign) and any(getattr(t, "id", "") in ("FINANCE_ROLES", "LEAVING", "CHANGE") for t in n.targets))]
+        (isinstance(n, ast.Assign) and any(getattr(t, "id", "") in ("FINANCE_ROLES", "LEAVING", "CHANGE", "INTERNAL_MOVE") for t in n.targets))]
 ns = {"re": re}
 exec(compile(ast.Module(keep, []), "classify_502", "exec"), ns)
 classify_502 = ns["classify_502"]
