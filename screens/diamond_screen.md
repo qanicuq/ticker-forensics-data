@@ -1,14 +1,14 @@
 # Diamond Finder
 
-Run: Fri Nov 20, 2026 11:17 PM New York time. Prices are the last close from yfinance; fundamentals are from SEC filings. **These are stocks to research, not buys.** Run the interesting ones through Ticker Forensics.
+Run: Tue Nov 24, 2026 02:06 AM New York time. Prices are the last close from yfinance; fundamentals are from SEC filings. **These are stocks to research, not buys.** Run the interesting ones through Ticker Forensics.
 
-**34 of 6020** companies passed every test. Top 25 below, best first.
+**30 of 6018** companies passed every test. Top 25 below, best first.
 
-## Changes since Wednesday's run
+## Changes since Friday's run
 
-- New: LNN, SMP
-- Dropped: MLR (fell out of top 25), SCSC (fell out of top 25)
-- 3 new Form 10 filing(s): Pacaso Inc., Pretium Housing Income Trust, Tristar Marble Group Ltd.
+- New: MLR, SCSC, VTSI
+- Dropped: VC (no longer passes), LNN (no longer passes), SMP (no longer passes)
+- 1 new Form 10 filing(s): DUO WORLD INC
 
 ## Shortlist
 
@@ -18,52 +18,55 @@ Hover over (or tap) the ⓘ next to a column title to see what it means. Full gu
 
 | #<sup>[ⓘ](#column-guide "Rank. 1 = best. Ranked on four things with equal weight: cheapest on 3-year average earnings, cheapest against tangible book, cheapest on 3-year average operating cash flow, and most liquid assets for the price.")</sup> | Ticker<sup>[ⓘ](#column-guide "Stock symbol.")</sup> | Company<sup>[ⓘ](#column-guide "Company name as filed with the SEC.")</sup> | Price<sup>[ⓘ](#column-guide "Last closing price (yfinance).")</sup> | Mkt cap<sup>[ⓘ](#column-guide "Market cap: price × the share count in SEC filings. Must be under $2B.")</sup> | P/E (3-yr)<sup>[ⓘ](#column-guide "Price ÷ average yearly profit over the last 3 years. Lower = cheaper. Must be 15 or less to make the list.")</sup> | P/B<sup>[ⓘ](#column-guide "Price ÷ book value (assets minus all liabilities). Under 1 = priced below book. The ranking uses tangible book (book minus goodwill and intangibles).")</sup> | P/CF (3-yr)<sup>[ⓘ](#column-guide "Price ÷ average yearly operating cash flow over the last 3 years. Lower = cheaper (Dreman). n/a = cash flow missing or negative.")</sup> | P/E × P/B<sup>[ⓘ](#column-guide "Graham's combined cheapness test: P/E (3-yr) × P/B should be 22.5 or less. ✅ = passes. The number is the result.")</sup> | Graham<sup>[ⓘ](#column-guide "How many of Graham's 7 enterprising-investor tests it passes (SKILL.md section 3).")</sup> | Net-net<sup>[ⓘ](#column-guide "✅ = market cap at or below 2/3 of net current assets (current assets minus all liabilities): Graham's deepest bargain.")</sup> | 52-wk low<sup>[ⓘ](#column-guide "How far the price is above its lowest price in the past year. ✅ = within 10% (Dreman and Neff hunt among recent losers). n/a = listed under a year.")</sup> | Neff<sup>[ⓘ](#column-guide "Neff ratio = (yearly growth of total earnings over the last 5 annual reports % + dividend yield %) ÷ P/E on the latest year. Higher is better; Neff wanted about twice the market's ratio. Uses total earnings, not per-share, so buybacks or new shares can make it a little off.")</sup> | Red flags<sup>[ⓘ](#column-guide "Number of quick forensic warnings (SKILL.md section 4); details below the tables. A flag means look harder, not automatically avoid.")</sup> |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | **WETH** | Wetouch Technology Inc. | $0.70 | $31.32M | 4.4 | 0.16 | 4.4 | ✅ 0.7 | 5/7 | ✅ | ✅ +8.5% | -4.55 | none |
-| 2 | **IMXI** | International Money Express, Inc. | $5.53 | $167.11M | 3.3 | 0.95 | 2.1 | ✅ 3.2 | 4/7 | — | ✅ +5.7% | -1.68 | none |
-| 3 | **SD** | SANDRIDGE ENERGY INC | $11.72 | $434.90M | 6.7 | 0.76 | 4.5 | ✅ 5.1 | 6/7 | — | ✅ +0.2% | -1.34 | none |
-| 4 | **VC** | VISTEON CORP | $80.05 | $1.98B | 5.6 | 1.4 | 5.4 | ✅ 7.8 | 5/7 | — | +14.5% | 5.04 | none |
-| 5 | **INVA** | Innoviva, Inc. | $18.41 | $1.31B | 8.3 | 1.15 | 7.5 | ✅ 9.5 | 4/7 | — | ✅ +1.2% | -1.53 | none |
-| 6 | **YELP** | YELP INC | $18.19 | $991.23M | 7.9 | 1.48 | 3.1 | ✅ 11.6 | 5/7 | — | ✅ +5.3% | 5.64 | none |
-| 7 | **HRMY** | Harmony Biosciences Holdings, Inc. | $32.59 | $1.91B | 13.3 | 1.78 | 7.3 | ❌ 23.7 | 4/7 | — | +25.8% | 3.84 | none |
-| 8 | **PRDO** | PERDOCEO EDUCATION Corp | $27.47 | $1.70B | 11.2 | 1.63 | 10.2 | ✅ 18.3 | 4/7 | — | ✅ +4.7% | 0.93 | none |
-| 9 | **LZB** | LA-Z-BOY INC | $29.74 | $1.16B | 10.7 | 1.15 | 6.3 | ✅ 12.4 | 4/7 | — | ✅ +4.8% | -0.52 | none |
-| 10 | **LNN** | LINDSAY CORP | $94.64 | $962.48M | 14.7 | 1.9 | 9.5 | ❌ 28.0 | 4/7 | — | ✅ +0.2% | -0.14 | none |
-| 11 | **RCMT** | RCM TECHNOLOGIES, INC. | $30.90 | $220.35M | 14.2 | 4.16 | 17.6 | ❌ 59.2 | 4/7 | — | +79.0% | 0.77 | none |
-| 12 | **SMP** | STANDARD MOTOR PRODUCTS, INC. | $43.38 | $969.19M | 14.8 | 1.33 | 10.4 | ✅ 19.8 | 4/7 | — | +26.6% | -0.22 | none |
+| 1 | **WETH** | Wetouch Technology Inc. | $0.78 | $34.74M | 4.9 | 0.18 | 4.9 | ✅ 0.9 | 5/7 | ✅ | +20.3% | -4.1 | none |
+| 2 | **IMXI** | International Money Express, Inc. | $5.09 | $153.82M | 3.1 | 0.88 | 2.0 | ✅ 2.7 | 4/7 | — | ✅ +0.8% | -1.83 | none |
+| 3 | **SD** | SANDRIDGE ENERGY INC | $11.71 | $434.53M | 6.7 | 0.76 | 4.5 | ✅ 5.1 | 6/7 | — | ✅ +1.6% | -1.34 | none |
+| 4 | **INVA** | Innoviva, Inc. | $18.85 | $1.34B | 8.5 | 1.18 | 7.6 | ✅ 10.0 | 4/7 | — | ✅ +3.6% | -1.5 | none |
+| 5 | **YELP** | YELP INC | $18.21 | $992.32M | 7.9 | 1.48 | 3.1 | ✅ 11.6 | 5/7 | — | ✅ +5.4% | 5.64 | none |
+| 6 | **PRDO** | PERDOCEO EDUCATION Corp | $27.81 | $1.72B | 11.4 | 1.65 | 10.4 | ✅ 18.7 | 4/7 | — | ✅ +6.0% | 0.92 | none |
+| 7 | **HRMY** | Harmony Biosciences Holdings, Inc. | $34.05 | $2.00B | 13.9 | 1.86 | 7.6 | ❌ 25.8 | 4/7 | — | +31.5% | 3.68 | none |
+| 8 | **LZB** | LA-Z-BOY INC | $30.09 | $1.17B | 10.8 | 1.17 | 6.4 | ✅ 12.7 | 4/7 | — | ✅ +6.0% | -0.52 | none |
+| 9 | **RCMT** | RCM TECHNOLOGIES, INC. | $31.90 | $227.49M | 14.7 | 4.3 | 18.1 | ❌ 63.1 | 4/7 | — | +84.8% | 0.75 | none |
 
 ### With red flags (look harder)
 
 | #<sup>[ⓘ](#column-guide "Rank. 1 = best. Ranked on four things with equal weight: cheapest on 3-year average earnings, cheapest against tangible book, cheapest on 3-year average operating cash flow, and most liquid assets for the price.")</sup> | Ticker<sup>[ⓘ](#column-guide "Stock symbol.")</sup> | Company<sup>[ⓘ](#column-guide "Company name as filed with the SEC.")</sup> | Price<sup>[ⓘ](#column-guide "Last closing price (yfinance).")</sup> | Mkt cap<sup>[ⓘ](#column-guide "Market cap: price × the share count in SEC filings. Must be under $2B.")</sup> | P/E (3-yr)<sup>[ⓘ](#column-guide "Price ÷ average yearly profit over the last 3 years. Lower = cheaper. Must be 15 or less to make the list.")</sup> | P/B<sup>[ⓘ](#column-guide "Price ÷ book value (assets minus all liabilities). Under 1 = priced below book. The ranking uses tangible book (book minus goodwill and intangibles).")</sup> | P/CF (3-yr)<sup>[ⓘ](#column-guide "Price ÷ average yearly operating cash flow over the last 3 years. Lower = cheaper (Dreman). n/a = cash flow missing or negative.")</sup> | P/E × P/B<sup>[ⓘ](#column-guide "Graham's combined cheapness test: P/E (3-yr) × P/B should be 22.5 or less. ✅ = passes. The number is the result.")</sup> | Graham<sup>[ⓘ](#column-guide "How many of Graham's 7 enterprising-investor tests it passes (SKILL.md section 3).")</sup> | Net-net<sup>[ⓘ](#column-guide "✅ = market cap at or below 2/3 of net current assets (current assets minus all liabilities): Graham's deepest bargain.")</sup> | 52-wk low<sup>[ⓘ](#column-guide "How far the price is above its lowest price in the past year. ✅ = within 10% (Dreman and Neff hunt among recent losers). n/a = listed under a year.")</sup> | Neff<sup>[ⓘ](#column-guide "Neff ratio = (yearly growth of total earnings over the last 5 annual reports % + dividend yield %) ÷ P/E on the latest year. Higher is better; Neff wanted about twice the market's ratio. Uses total earnings, not per-share, so buybacks or new shares can make it a little off.")</sup> | Red flags<sup>[ⓘ](#column-guide "Number of quick forensic warnings (SKILL.md section 4); details below the tables. A flag means look harder, not automatically avoid.")</sup> |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 13 | **SIGA** | SIGA TECHNOLOGIES INC | $2.40 | $172.45M | 3.4 | 1.06 | 2.8 | ✅ 3.6 | 6/7 | — | ✅ +4.3% | 0.15 | [⚠️ 2](#red-flag-details) |
-| 14 | **HDSN** | HUDSON TECHNOLOGIES INC | $3.91 | $164.57M | 5.3 | 0.67 | 3.4 | ✅ 3.5 | 4/7 | — | ✅ +0.3% | -1.54 | [⚠️ 3](#red-flag-details) |
-| 15 | **USNA** | USANA HEALTH SCIENCES INC | $12.94 | $239.24M | 6.2 | 0.45 | 4.7 | ✅ 2.8 | 4/7 | — | ✅ +3.3% | -2.02 | [⚠️ 2](#red-flag-details) |
-| 16 | **SHOE** | SHOE STATION GROUP INC | $14.26 | $387.64M | 5.8 | 0.57 | 3.9 | ✅ 3.3 | 6/7 | — | +39.8% | -2.62 | [⚠️ 2](#red-flag-details) |
-| 17 | **UVV** | UNIVERSAL CORP | $32.23 | $803.40M | 9.7 | 0.58 | 6.3 | ✅ 5.6 | 5/7 | — | ✅ +0.2% | -0.47 | [⚠️ 1](#red-flag-details) |
-| 18 | **RES** | RPC INC | $4.82 | $1.07B | 10.1 | 1.0 | 3.4 | ✅ 10.1 | 6/7 | — | ✅ +0.6% | 1.46 | [⚠️ 1](#red-flag-details) |
-| 19 | **ORGO** | Organogenesis Holdings Inc. | $0.77 | $100.21M | 7.0 | 0.84 | 8.6 | ✅ 5.9 | 5/7 | — | ✅ +5.8% | -7.69 | [⚠️ 2](#red-flag-details) |
-| 20 | **PLAB** | PHOTRONICS INC | $24.03 | $1.42B | 10.8 | 1.11 | 5.2 | ✅ 12.0 | 5/7 | — | +19.9% | 2.43 | [⚠️ 1](#red-flag-details) |
-| 21 | **BXC** | BlueLinx Holdings Inc. | $55.95 | $440.02M | 13.0 | 0.7 | 2.9 | ✅ 9.1 | 4/7 | — | +24.9% | -0.04 | [⚠️ 1](#red-flag-details) |
-| 22 | **KMT** | KENNAMETAL INC | $21.29 | $1.64B | 9.0 | 0.9 | 10.2 | ✅ 8.1 | 7/7 | — | ✅ +0.6% | 5.79 | [⚠️ 2](#red-flag-details) |
-| 23 | **ETD** | ETHAN ALLEN INTERIORS INC | $15.10 | $380.59M | 7.4 | 1.0 | 5.9 | ✅ 7.4 | 5/7 | — | ✅ +0.3% | -0.94 | [⚠️ 1](#red-flag-details) |
-| 24 | **RAVE** | RAVE RESTAURANT GROUP, INC. | $1.97 | $28.08M | 10.5 | 1.56 | 8.6 | ✅ 16.3 | 3/7 | — | ✅ +0.0% | -2.32 | [⚠️ 1](#red-flag-details) |
-| 25 | **LPG** | DORIAN LPG LTD. | $44.20 | $1.90B | 9.6 | 1.35 | 7.4 | ✅ 13.0 | 5/7 | — | +86.0% | 3.43 | [⚠️ 1](#red-flag-details) |
+| 10 | **SIGA** | SIGA TECHNOLOGIES INC | $2.30 | $165.27M | 3.3 | 1.01 | 2.7 | ✅ 3.3 | 6/7 | — | ✅ +0.9% | 0.31 | [⚠️ 2](#red-flag-details) |
+| 11 | **HDSN** | HUDSON TECHNOLOGIES INC | $4.12 | $173.40M | 5.6 | 0.71 | 3.5 | ✅ 3.9 | 4/7 | — | ✅ +5.6% | -1.46 | [⚠️ 3](#red-flag-details) |
+| 12 | **USNA** | USANA HEALTH SCIENCES INC | $13.26 | $245.16M | 6.3 | 0.47 | 4.8 | ✅ 2.9 | 4/7 | — | ✅ +5.8% | -1.97 | [⚠️ 2](#red-flag-details) |
+| 13 | **SHOE** | SHOE STATION GROUP INC | $14.19 | $385.74M | 5.8 | 0.57 | 3.9 | ✅ 3.3 | 6/7 | — | +39.1% | -2.63 | [⚠️ 2](#red-flag-details) |
+| 14 | **UVV** | UNIVERSAL CORP | $32.12 | $800.66M | 9.7 | 0.58 | 6.3 | ✅ 5.6 | 5/7 | — | ✅ +2.5% | -0.47 | [⚠️ 1](#red-flag-details) |
+| 15 | **RES** | RPC INC | $4.88 | $1.08B | 10.2 | 1.01 | 3.4 | ✅ 10.3 | 6/7 | — | ✅ +1.9% | 1.44 | [⚠️ 1](#red-flag-details) |
+| 16 | **ORGO** | Organogenesis Holdings Inc. | $0.79 | $102.15M | 7.2 | 0.85 | 8.8 | ✅ 6.1 | 5/7 | — | ✅ +7.8% | -7.55 | [⚠️ 2](#red-flag-details) |
+| 17 | **BXC** | BlueLinx Holdings Inc. | $59.77 | $470.06M | 13.8 | 0.75 | 3.1 | ✅ 10.4 | 4/7 | — | +33.5% | -0.04 | [⚠️ 1](#red-flag-details) |
+| 18 | **PLAB** | PHOTRONICS INC | $26.47 | $1.56B | 11.9 | 1.22 | 5.8 | ✅ 14.6 | 4/7 | — | +25.2% | 2.2 | [⚠️ 1](#red-flag-details) |
+| 19 | **ETD** | ETHAN ALLEN INTERIORS INC | $14.99 | $377.81M | 7.3 | 0.99 | 5.8 | ✅ 7.3 | 5/7 | — | ✅ +0.5% | -0.94 | [⚠️ 1](#red-flag-details) |
+| 20 | **RAVE** | RAVE RESTAURANT GROUP, INC. | $1.97 | $28.08M | 10.5 | 1.56 | 8.6 | ✅ 16.3 | 3/7 | — | ✅ +3.7% | -2.32 | [⚠️ 1](#red-flag-details) |
+| 21 | **KMT** | KENNAMETAL INC | $23.17 | $1.78B | 9.8 | 0.98 | 11.1 | ✅ 9.6 | 7/7 | — | ✅ +9.4% | 5.27 | [⚠️ 2](#red-flag-details) |
+| 22 | **MLR** | MILLER INDUSTRIES INC | $48.36 | $546.65M | 11.3 | 1.3 | 13.0 | ✅ 14.7 | 5/7 | — | +33.5% | 0.45 | [⚠️ 1](#red-flag-details) |
+| 23 | **SCSC** | SCANSOURCE, INC. | $44.88 | $912.19M | 12.0 | 1.0 | 4.5 | ✅ 12.0 | 3/7 | — | +32.9% | -0.25 | [⚠️ 1](#red-flag-details) |
+| 24 | **LPG** | DORIAN LPG LTD. | $45.84 | $1.97B | 10.0 | 1.4 | 7.7 | ✅ 13.9 | 5/7 | — | +92.9% | 3.29 | [⚠️ 1](#red-flag-details) |
+| 25 | **VTSI** | VirTra, Inc | $4.34 | $49.32M | 14.4 | 1.06 | 11.8 | ✅ 15.3 | 4/7 | — | +79.3% | -0.23 | [⚠️ 1](#red-flag-details) |
 
 ## Red flag details
 
-- **SIGA** (#13): last-12-month earnings down 97% from last annual report; inventory -1% vs sales -32%
-- **HDSN** (#14): losing money over the last 12 months; receivables +25% vs sales +4%; inventory +41% vs sales +4%
-- **USNA** (#15): losing money over the last 12 months; inventory +47% vs sales +8%
-- **SHOE** (#16): last-12-month earnings down 53% from last annual report; inventory +14% vs sales -6%
-- **UVV** (#17): losing money over the last 12 months
-- **RES** (#18): losing money over the last 12 months
-- **ORGO** (#19): losing money over the last 12 months; receivables +98% vs sales +17%
-- **PLAB** (#20): inventory +9% vs sales -2%
-- **BXC** (#21): losing money over the last 12 months
-- **KMT** (#22): receivables +38% vs sales +20%; inventory +106% vs sales +20%
-- **ETD** (#23): inventory +5% vs sales -6%
-- **RAVE** (#24): receivables +23% vs sales +7%
-- **LPG** (#25): receivables +50% vs sales +36%
+- **SIGA** (#10): last-12-month earnings down 97% from last annual report; inventory -1% vs sales -32%
+- **HDSN** (#11): losing money over the last 12 months; receivables +25% vs sales +4%; inventory +41% vs sales +4%
+- **USNA** (#12): losing money over the last 12 months; inventory +47% vs sales +8%
+- **SHOE** (#13): last-12-month earnings down 53% from last annual report; inventory +14% vs sales -6%
+- **UVV** (#14): losing money over the last 12 months
+- **RES** (#15): losing money over the last 12 months
+- **ORGO** (#16): losing money over the last 12 months; receivables +98% vs sales +17%
+- **BXC** (#17): losing money over the last 12 months
+- **PLAB** (#18): inventory +9% vs sales -2%
+- **ETD** (#19): inventory +5% vs sales -6%
+- **RAVE** (#20): receivables +23% vs sales +7%
+- **KMT** (#21): receivables +38% vs sales +20%; inventory +106% vs sales +20%
+- **MLR** (#22): inventory -1% vs sales -37%
+- **SCSC** (#23): receivables +21% vs sales +6%
+- **LPG** (#24): receivables +50% vs sales +36%
+- **VTSI** (#25): losing money over the last 12 months
 
 ## Column guide
 
@@ -96,22 +99,22 @@ The SEC has no current company-wide share count for these (usually because they 
 
 ## New Form 10 filings this week (often spinoffs, SKILL.md section 3)
 
+- [DUO WORLD INC](https://www.sec.gov/Archives/edgar/data/1635136/0001635136-26-000007.txt) — 10-12G, filed 20261123
 - [Pacaso Inc.](https://www.sec.gov/Archives/edgar/data/1858206/0001493152-26-053563.txt) — 10-12G, filed 20261120
 - [Pretium Housing Income Trust](https://www.sec.gov/Archives/edgar/data/2163809/0001104659-26-130190.txt) — 10-12G, filed 20261119
 - [Tristar Marble Group Ltd.](https://www.sec.gov/Archives/edgar/data/2139596/0001477932-26-007179.txt) — 10-12G, filed 20261119
-- [Garry Oak Capital BDC LLC](https://www.sec.gov/Archives/edgar/data/2159316/0001104659-26-129080.txt) — 10-12G, filed 20261117
 
 ## Why other companies were left out
 
-- a loss in the last 5 years: 2106
-- under 5 years of annual reports: 1690
-- not US GAAP (foreign filer): 609
-- no current assets/liabilities (banks, insurers, REITs): 451
-- current ratio under 1.5: 428
-- market cap over $2B: 176
-- debt over 110% of net current assets: 162
-- no SEC company facts (often foreign filers): 152
-- P/E over 15 on 3-yr average earnings: 57
+- a loss in the last 5 years: 2099
+- under 5 years of annual reports: 1692
+- not US GAAP (foreign filer): 610
+- no current assets/liabilities (banks, insurers, REITs): 452
+- current ratio under 1.5: 427
+- market cap over $2B: 178
+- debt over 110% of net current assets: 163
+- no SEC company facts (often foreign filers): 153
+- P/E over 15 on 3-yr average earnings: 59
 - gap in annual reports: 39
 - average volume under 50K shares: 24
 - missing total liabilities or equity: 21
