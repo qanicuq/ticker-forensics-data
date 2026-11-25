@@ -331,12 +331,18 @@ function engine(D){
 
   /* ---- forensic checks (Financial Shenanigans §4.2) ---- */
   const days=(a,b)=>a!=null&&b?a/b*91.25:null;
-  const q=(i,k)=>{ const inc=iQ[i]; if(!inc) return null; const b=at(bQ,inc.end_date); return b?{rev:N(inc.total_revenue),cogs:N(inc.cost_of_revenue),ar:N(b.total_recv_net),inv:N(b.total_inv),ap:N(b.ap),soft:(N(b.other_cur_assets)||0)+(N(b.other_lt_assets)||0),ta:N(b.total_assets)}:null; };
+  const q=(i,k)=>{ const inc=iQ[i]; if(!inc) return null; const b=at(bQ,inc.end_date); return b?{rev:N(inc.total_revenue),cogs:N(inc.cost_of_revenue),ar:N(b.total_recv_net),tr:N(b.ar_trade_net),inv:N(b.total_inv),ap:N(b.ap),soft:(N(b.other_cur_assets)||0)+(N(b.other_lt_assets)||0),ta:N(b.total_assets)}:null; };
   const q0=q(0), q4=q(4);
   if(q0&&q4){
-    const d0=days(q0.ar,q0.rev), d4=days(q4.ar,q4.rev);
-    if(d0!=null&&d4){ const ch=d0/d4-1; const st=ch>0.4?"bad":ch>0.2?"warn":"ok"; metric("Days sales outstanding",`${fmt(d0,0)} days (was ${fmt(d4,0)})`,st,"Ending receivables ÷ quarterly sales. Rising means sales may be pulled forward or hard to collect (EM1/EM2).");
+    /* money owed by customers only (Webull ar_trade_net) when both quarters have it; Webull's total also counts amounts
+       due from related parties and other non-customer receivables (RLX, Nov 2026: 42 → 75 days on the total, 24 → 30 on customers) */
+    const useTr=q0.tr!=null&&q4.tr!=null;
+    const d0=days(useTr?q0.tr:q0.ar,q0.rev), d4=days(useTr?q4.tr:q4.ar,q4.rev);
+    if(d0!=null&&d4){ const ch=d0/d4-1; const st=ch>0.4?"bad":ch>0.2?"warn":"ok"; metric("Days sales outstanding",`${fmt(d0,0)} days (was ${fmt(d4,0)})${useTr?"":" (all receivables: Webull has no customer-only line)"}`,st,"Money owed by customers at quarter end ÷ quarterly sales. Rising means sales may be pulled forward or hard to collect (EM1/EM2).");
       if(st!=="ok") flag("Customers are taking longer to pay",st==="bad"?"high":"medium",`Days sales outstanding rose from ${fmt(d4,0)} to ${fmt(d0,0)} in a year.`); }
+    /* receivables that are not from customers (Webull total minus customer line): related parties, tax refunds, deposits */
+    if(useTr&&q0.ar!=null&&q4.ar!=null&&q0.rev>0){ const o0=q0.ar-q0.tr, o4=q4.ar-q4.tr;
+      if(o0>2*Math.max(o4,0)&&o0>0.1*q0.rev) flag("Money owed by others than customers jumped","medium",`Receivables that are not from customers (for example amounts due from related parties, tax refunds or deposits) rose from $${fmtBig(o4)} to $${fmtBig(o0)} in a year, ${pc(o0/q0.rev)} of the quarter's sales. Webull doesn't say what they are: read the balance sheet and the related-party note.`); }
     const i0=days(q0.inv,q0.cogs), i4=days(q4.inv,q4.cogs);
     if(i0!=null&&i4&&q0.inv>0.03*q0.ta){ const ch=i0/i4-1; const st=ch>0.2?"warn":"ok"; metric("Days inventory",`${fmt(i0,0)} days (was ${fmt(i4,0)})`,st,"Inventory ÷ quarterly cost of sales. Rising points to slow sales or obsolete stock (EM4).");
       if(st!=="ok") flag("Inventory building up","medium",`Days of inventory rose from ${fmt(i4,0)} to ${fmt(i0,0)} in a year.`); }
@@ -417,7 +423,7 @@ function engine(D){
     metric("Piotroski F-score",`${X.piotroski}/9`,X.piotroski>=7?"ok":X.piotroski<=3?"bad":"warn","Nine yes/no tests of profit, cash, leverage and efficiency. 7+ strong, 3 or less weak [outside the books].");
     if(X.piotroski<=2) flag("Weak Piotroski score","medium",`Only ${X.piotroski} of 9 financial-health tests passed.`);
     if(!isFin){
-      const S0=N(A0.total_revenue),S1=N(A1.total_revenue),AR0=N(B0.total_recv_net)||0,AR1=N(B1.total_recv_net)||0,TA0=N(B0.total_assets),TA1=N(B1.total_assets);
+      const S0=N(A0.total_revenue),S1=N(A1.total_revenue),trB=N(B0.ar_trade_net)!=null&&N(B1.ar_trade_net)!=null,AR0=N(trB?B0.ar_trade_net:B0.total_recv_net)||0,AR1=N(trB?B1.ar_trade_net:B1.total_recv_net)||0,TA0=N(B0.total_assets),TA1=N(B1.total_assets);
       const PPE0=N(B0.ppe_net)||0,PPE1=N(B1.ppe_net)||0,CA0=N(B0.total_cur_assets),CA1=N(B1.total_cur_assets),Dp0=N(C0.dna),Dp1=N(C1?.dna);
       const SG0=N(A0.sga_exp),SG1=N(A1.sga_exp),CL0=N(B0.total_cur_liab),CL1=N(B1.total_cur_liab),LD0=N(B0.total_lt_debt)||0,LD1=N(B1.total_lt_debt)||0;
       if(S0&&S1&&TA0&&TA1&&CA0&&CA1&&AR1>0){

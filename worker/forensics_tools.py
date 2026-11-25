@@ -674,6 +674,12 @@ def _market_lines(E, A, mk):
     note = (f"Also sell at about {money(line)}, where both the P/E (now {pe:.1f}) and the P/B (now {pb:.2f}) would be back at "
             f"the market's ({src}), even if that is below estimated value (Dreman Rule 21). The line moves as earnings, book value "
             "and the market change: re-check it when you review.")
+    if price * mpe / pe < price or price * mpb / pb < price:  # one ratio is already above the market's (ELF, Nov 2026: P/E 72 vs 24)
+        hi, lo = (("P/E", f"{pe:.1f}", f"{mpe:.1f}"), ("P/B", f"{pb:.2f}", f"{mpb:.2f}")) if pe > mpe else (("P/B", f"{pb:.2f}", f"{mpb:.2f}"), ("P/E", f"{pe:.1f}", f"{mpe:.1f}"))
+        note = (f"Also sell at about {money(line)}, where the {lo[0]} (now {lo[1]}) would reach the market's {lo[2]}; the {hi[0]} "
+                f"(now {hi[1]}) is already above the market's {hi[2]} ({src}). Dreman Rule 21: sell when the stock is no longer "
+                "cheaper than the market, even if that is below estimated value. The line moves as earnings, book value and the "
+                "market change: re-check it when you review.")
     tgt = num(ep.get("target"))
     if tgt is not None and line >= tgt:
         note = (f"The market-level line is about {money(line)} (P/E {pe:.1f} and P/B {pb:.2f} now, vs {src}), above the "
@@ -1051,6 +1057,12 @@ def cmd_trigger(final_path, ticker, check=None):
                     why = "data hold: " + dhold["note"].split("No paper-bot trigger: ", 1)[-1].rstrip(".")
                 elif X is None or stop is None or target is None:
                     why = "the report has no complete entry, stop and target"
+                elif target < X * 1.1 and cheap_first:  # the "no longer cheap" line replaced the value target (ELF, Nov 2026)
+                    ce_ = ep.get("cheapExit") or {}
+                    why = (f"the \"no longer cheap\" sell price {money(target)} is less than 10% above the entry {money(X)}, so the stock is "
+                           f"not clearly cheaper than the market (P/E {ce_.get('stockPE'):.1f} vs the S&P 500's {ce_.get('marketPE'):.1f}, "
+                           f"P/B {ce_.get('stockPB'):.2f} vs {ce_.get('marketPB'):.2f}; Dreman Rule 21). The value estimate "
+                           f"{money(num(ep.get('target')))} is not used as the target while the stock is priced like the market")
                 elif target < X * 1.1:
                     why = f"the target {money(target)} is less than 10% above the entry {money(X)}"
                 elif stop >= X:
