@@ -11,6 +11,7 @@ usage:
   python3 forensics_tools.py packet-wait  TICKER                    -> waits up to 6 min, saves wb/TICKER/packet.json
   python3 forensics_tools.py sec     JOB.json PACKET.json|- [--engine ENGINE.json] [--filled FILLED.json] > sec.json
   python3 forensics_tools.py finalize JOB.json CLAUDE_PATCH.json SEC.json [--engine ENGINE.json] [--filled FILLED.json] > final.json
+  python3 forensics_tools.py sic-check JOB.json PACKET.json [--engine ENGINE.json] -> OK / REBUILD (Altman choice vs the SEC code)
   python3 forensics_tools.py release-lines PACKET.json
   python3 forensics_tools.py fill TICKER DIR FIGS.json [--packet PACKET.json] [--web]
   python3 forensics_tools.py trigger FINAL.json TICKER [--check "short phrase"]   (edits FINAL.json in place)
@@ -110,6 +111,40 @@ def cmd_brief(job_path, engine_path=None):
     if isinstance(job.get("engine"), dict):
         job["engine"] = {k: v for k, v in job["engine"].items() if k != "chart"}
     print(json.dumps(job, separators=(",", ":")))
+
+
+# ---------------------------------------------------------------- 2b. Altman choice vs the SEC industry code
+def sic_check(E, pk):
+    """The page has no SEC industry code, so it picks Altman Z / Z″ (and the utility skip) by Webull's industry name.
+    Returns (REBUILD or OK, reason). REBUILD when the packet's SEC code gives a different choice (IBM, Nov 26 2026:
+    SEC 3570 = manufacturer, but the name "IT Services & Consulting" gave Z″)."""
+    sic = (pk or {}).get("sic")
+    if not isinstance(sic, int) or isinstance(sic, bool):
+        return "OK", "no SEC industry code in the packet"
+    A = E.get("analysis") or {}
+    X = A.get("forensic") or {}
+    basis = str(X.get("altmanBasis") or "")
+    if basis.startswith("SEC industry code"):
+        return "OK", "the report already used " + basis
+    notes = (A.get("value") or {}).get("notes") or []
+    report_util = any(str(n).startswith("Regulated utility") for n in notes)
+    sec_util = 4900 <= sic <= 4949
+    if report_util != sec_util:
+        return "REBUILD", (f"SEC code {sic} {'is' if sec_util else 'is not'} a regulated utility, "
+                           f"but the report {'skipped' if report_util else 'gave'} the Altman score by industry name")
+    ver = X.get("altmanVersion")
+    if ver is None:
+        return "OK", "no Altman score in the report (financial company, utility or missing balance sheet)"
+    want = "Z" if 2000 <= sic <= 3999 else "Z″"
+    if ver != want:
+        return "REBUILD", f"SEC code {sic} needs Altman {want}, but the report used {ver} by {basis or 'industry name'}"
+    return "OK", f"Altman {ver} matches SEC code {sic}"
+
+
+def cmd_sic_check(job_path, packet_path, engine_path=None):
+    E = engine_of(load(job_path), engine_path)
+    word, why = sic_check(E, load(packet_path))
+    print(word, why)
 
 
 # ---------------------------------------------------------------- 2. data packet
@@ -1645,6 +1680,8 @@ def main(a):
         cmd_sec(pos[0], pos[1], opt("--engine"), filled_path=opt("--filled"))
     elif cmd == "finalize":
         cmd_finalize(pos[0], pos[1], pos[2], opt("--engine"), filled_path=opt("--filled"))
+    elif cmd == "sic-check":
+        cmd_sic_check(pos[0], pos[1], opt("--engine"))
     elif cmd == "release-lines":
         cmd_release_lines(pos[0])
     elif cmd == "fill":
