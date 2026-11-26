@@ -73,3 +73,13 @@ def test_elf_no_trigger_note(tmp_path, monkeypatch):
 def test_value_target_too_close_keeps_old_note(tmp_path, monkeypatch):
     ep = {**ELF_EP, "target": 110.0, "cheapExit": {**ELF_EP["cheapExit"], "price": 120.0}}  # line above value: no cheap-first
     assert trigger_note(tmp_path, monkeypatch, ep) == "No trigger sent: the target $110.00 is less than 10% above the entry $103.47."
+
+
+def test_elf_nov_26_line_already_below_entry(tmp_path, monkeypatch):
+    # ELF, Nov 26 2026: the stock rose to $108.93, past its $105.38 "no longer cheap" line
+    ep = {**ELF_EP, "entry": 108.93, "stop": 31.37, "target": 180.26,
+          "cheapExit": {**ELF_EP["cheapExit"], "stockPE": 76.015352, "stockPB": 5.250929, "date": "2026-11-26"}}
+    assert trigger_note(tmp_path, monkeypatch, ep) == (
+        "No trigger sent: the \"no longer cheap\" sell price $105.38 is already below the entry $108.93, so the stock is "
+        "not clearly cheaper than the market (P/E 76.0 vs the S&P 500's 24.0, P/B 5.25 vs 5.08; Dreman Rule 21). "
+        "The value estimate $180.26 is not used as the target while the stock is priced like the market.")
