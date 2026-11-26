@@ -1059,7 +1059,8 @@ def cmd_trigger(final_path, ticker, check=None):
                     why = "the report has no complete entry, stop and target"
                 elif target < X * 1.1 and cheap_first:  # the "no longer cheap" line replaced the value target (ELF, Nov 2026)
                     ce_ = ep.get("cheapExit") or {}
-                    why = (f"the \"no longer cheap\" sell price {money(target)} is less than 10% above the entry {money(X)}, so the stock is "
+                    where = "is already below" if target < X else "is less than 10% above"  # ELF Nov 26 2026: $105.38 vs entry $108.93
+                    why = (f"the \"no longer cheap\" sell price {money(target)} {where} the entry {money(X)}, so the stock is "
                            f"not clearly cheaper than the market (P/E {ce_.get('stockPE'):.1f} vs the S&P 500's {ce_.get('marketPE'):.1f}, "
                            f"P/B {ce_.get('stockPB'):.2f} vs {ce_.get('marketPB'):.2f}; Dreman Rule 21). The value estimate "
                            f"{money(num(ep.get('target')))} is not used as the target while the stock is priced like the market")
