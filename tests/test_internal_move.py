@@ -74,3 +74,20 @@ def test_profit_before_tax_build_still_wins_over_cost_build():  # keeps Lilly's 
                    "pretax_income": {"2025-12-31": 25.0}, "nonoperating": {"2025-12-31": -2.0}})
     assert an["operating_income"]["2025-12-31"] == 27.0
     assert "cost of revenue" not in an["operating_income_basis"]
+
+
+def test_elf_nov_16_2026_pao_title_handover_cfo_stays():  # the bug: was "finance officer departure"
+    assert kind("Effective November 12, 2026, the Board of Directors of e.l.f. Beauty, Inc. (the 'Company') appointed "
+                "Amit Khetan, the Company's Chief Accounting Officer, to serve as principal accounting officer of the "
+                "Company, succeeding Mandy Fields, the Company's Senior Vice President and Chief Financial Officer, in "
+                "that role. Ms. Fields will continue to serve as Senior Vice President, Chief Financial Officer of the "
+                "Company. Mr. Khetan will not receive any additional compensation in connection with this appointment."
+                ) == "officer or director change"
+
+def test_cfo_resigns_but_continues_as_advisor_still_departure():
+    assert kind("On March 2, 2026, John Roe informed the Company of his decision to resign as Chief Financial Officer, "
+                "effective April 1, 2026. Mr. Roe will continue to serve as an advisor until June 30, 2026.") == "finance officer departure"
+
+def test_cfo_succeeded_without_staying_still_departure():
+    assert kind("On March 2, 2026, the Board appointed Jane Doe as Chief Financial Officer, succeeding John Roe, "
+                "effective April 1, 2026.") == "finance officer departure"
