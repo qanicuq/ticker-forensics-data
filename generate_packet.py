@@ -621,9 +621,10 @@ def classify_502(html_text):
         # became principal accounting officer, "succeeding" the CFO in that role; "Ms. Fields will continue to serve as
         # Senior Vice President, Chief Financial Officer"); only the word "succeed" is skipped, and only when the stay
         # sentence names a finance role and has no end date, so a real exit worded "step down", "depart" etc. still counts
-        stays = re.search(r"continue to serve as ([^.]{0,120})", body)
-        if (body.startswith("succeed", m.start()) and stays and re.search(r"chief financial officer|chief accounting officer|\bcfo\b", stays.group(1))
-                and not re.search(r"\b(?:until|through)\b", stays.group(1)) and not re.search(r"\b(?:resign|retire)", body)):
+        stays = re.search(r"([a-z'’-]+) will continue to serve as ([^.]{0,120})", body)
+        if (body.startswith("succeed", m.start()) and stays and stays.group(1) in (re.match(r"succeed\w*\s+([^,.;]{1,60})", body[m.start():]) or [""] * 2)[1]
+                and re.search(r"chief financial officer|chief accounting officer|\bcfo\b", stays.group(2))
+                and not re.search(r"\b(?:until|through)\b|subsidiar|division|segment|business unit", stays.group(2)) and not re.search(r"\b(?:resign|retire)", body)):
             continue
         win = body[max(0, m.start() - 300):m.end() + 100]
         if any(r in win for r in FINANCE_ROLES) or re.search(r"\b(?:cfo|cao)\b", win):
