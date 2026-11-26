@@ -110,7 +110,7 @@ function engine(D){
   const isFin=FINANCIAL.test(industry), mcap=N(s.market_value);
   const ttm=(arr,k,off=0)=>arr.length>=off+4&&arr.slice(off,off+4).every(q=>N(q[k])!=null)?sum(arr.slice(off,off+4).map(q=>N(q[k]))):null;
   const at=(arr,end)=>arr.find(x=>x.end_date===end)||null;
-  const F={}, flags=[], strengths=[], weaknesses=[], notes=[], metrics=[];
+  const F={}, flags=[], strengths=[], weaknesses=[], notes=[], metrics=[], unverified=[];
   const flag=(issue,severity,detail)=>flags.push({issue,severity,detail});
   const metric=(name,value,status,detail)=>metrics.push({name,value,status,detail});
   F.rev=ttm(iQ,"total_revenue")??N(iA[0]?.total_revenue);
@@ -359,7 +359,13 @@ function engine(D){
       const swing=ch>0.25&&cfoG!=null&&(niG==null||cfoG>niG+0.1); metric("Days payable",`${fmt(p0,0)} days (was ${fmt(p4,0)})`,swing?"warn":"ok","Payables ÷ quarterly cost of sales. A jump that drives cash-flow growth won't repeat (CF3 swing test).");
       if(swing) flag("Cash flow boosted by paying suppliers later","medium",`Days payable rose from ${fmt(p4,0)} to ${fmt(p0,0)} while operating cash flow grew ${pc(cfoG)}${niG!=null?` vs profit ${pc(niG)}`:" (profit a year earlier was zero or negative, so there is no profit growth to compare)"}. Treat that part of cash flow as one-off.`); }
     if(q0.ta&&q4.ta){ const s0=q0.soft/q0.ta, s4=q4.soft/q4.ta; const st=s0-s4>0.05?"warn":"ok"; metric("Soft assets",`${pc(s0,1)} of assets (was ${pc(s4,1)})`,st,"Other current and long-term assets. Fast growth can hide capitalised costs (EM4).");
-      if(st!=="ok") flag("Soft assets growing","medium",`'Other' assets rose from ${pc(s4,1)} to ${pc(s0,1)} of total assets in a year. Read the footnote for capitalised costs.`); }
+      /* a balance sheet Webull published in the last 7 days may not be final: ELF, Nov 25 2026, Webull's first copy of the
+         Sep 30 quarter left $76.9M of leased-property assets in 'other' assets (6.5%); its next-day copy moved them to property (3.5%) */
+      const pub=String((at(bQ,iQ[0].end_date)||{}).publish_date||"").slice(0,10);
+      const age=pub?Math.round((Date.parse(new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"}))-Date.parse(pub))/864e5):null;
+      if(st!=="ok"&&age!=null&&age>=0&&age<=7){ unverified.push(`the soft-assets jump (${pc(s4,1)} to ${pc(s0,1)} of assets; Webull published this balance sheet ${age} day${age===1?"":"s"} ago and may still be adjusting it: check the 10-Q)`);
+        missing.push(`Soft-assets check (Webull published this quarter's balance sheet ${age} day${age===1?"":"s"} ago; it may not be final)`); }
+      else if(st!=="ok") flag("Soft assets growing","medium",`'Other' assets rose from ${pc(s4,1)} to ${pc(s0,1)} of total assets in a year. Read the footnote for capitalised costs.`); }
   }
   if(cA.length>=3){
     const ni3=sum(cA.slice(0,3).map(y=>N(y.net_income)||0)), cfo3=sum(cA.slice(0,3).map(y=>N(y.cfo)||0));
@@ -612,7 +618,7 @@ function engine(D){
     "This quick check reads Webull numbers only; run the full analysis for SEC filings, walk-away checks and news before acting."].filter(Boolean).join(" ");
   const quote={companyName:name,price,change:N(s.change),changeRatio:N(s.change_ratio),marketCap:mcap,pe:N(s.pe_ratio),ps:N(s.ps_ratio),pb:N(s.pb_ratio),epsTtm:N(s.eps_ttm),divYield:N(s.yield),high52:N(s.fifty_two_wk_high),low52:N(s.fifty_two_wk_low),asOf:new Date(N(s.quote_time)||Date.now()).toISOString()};
   const tech={rsi14:rsi,macdHist,atr14:atr,sma20:s20,sma50:s50,sma200:s200,annVol60d:vol60,ret1m:ret(21),ret3m:ret(63),ret6m:ret(126),ret1y:ret(251),volRatio20v50:v50?v20/v50:null,low60:lo60,high60:hi60,lastCross,advDollar};
-  return {quote,tech,chart,missing,fin:{currency:cur,fx,rev:F.rev,ebit:F.ebit,ni:F.ni,lastQ:iQ[0]?.end_date||null,annual:iA.slice(0,5).map(y=>({end:y.end_date,rev:N(y.total_revenue),op:N(y.op_income),ni:N(y.net_income),un:N(y.unusual_expense_income),oi:N(y.inter_expse_inc_net_oper)}))},
+  return {quote,tech,chart,missing,unverified,fin:{currency:cur,fx,rev:F.rev,ebit:F.ebit,ni:F.ni,lastQ:iQ[0]?.end_date||null,annual:iA.slice(0,5).map(y=>({end:y.end_date,rev:N(y.total_revenue),op:N(y.op_income),ni:N(y.net_income),un:N(y.unusual_expense_income),oi:N(y.inter_expse_inc_net_oper)}))},
     analysis:{companyName:name,verdict,verdictWhy:why,rating:legacy,confidence,horizon:entryType==="value"?`Until value is reached (review at 18 months, sell at ${timeStop} if it hasn't worked)`:"Swing from a pullback (time stop 6 months)",thesis,summary,
       valueScores:vs,valueTotal:Math.round(total),
       scores:{fundamental:fundLegacy,valuation:valuLegacy,technical:techLegacy,sentiment:senti},
