@@ -91,3 +91,15 @@ def test_cfo_resigns_but_continues_as_advisor_still_departure():
 def test_cfo_succeeded_without_staying_still_departure():
     assert kind("On March 2, 2026, the Board appointed Jane Doe as Chief Financial Officer, succeeding John Roe, "
                 "effective April 1, 2026.") == "finance officer departure"
+
+def test_cfo_steps_down_while_ceo_continues_still_departure():  # the first ELF fix wrongly skipped these
+    assert kind("On March 2, 2026, John Roe, Chief Financial Officer, will step down effective April 1. Jane Doe, the "
+                "Chief Executive Officer, will continue to serve as interim principal financial officer.") == "finance officer departure"
+
+def test_cfo_terminated_while_ceo_continues_still_departure():
+    assert kind("On March 2, 2026, the Company terminated the employment of John Roe, Chief Financial Officer. Jane Doe "
+                "will continue to serve as Chief Executive Officer.") == "finance officer departure"
+
+def test_cfo_succeeded_but_stays_only_until_date_still_departure():
+    assert kind("On March 2, 2026, the Board appointed Jane Doe as Chief Financial Officer, succeeding John Roe. Mr. Roe "
+                "will continue to serve as Chief Financial Officer until April 1, 2026.") == "finance officer departure"
