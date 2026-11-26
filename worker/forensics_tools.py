@@ -734,7 +734,7 @@ def cmd_finalize(job_path, patch_path, sec_path, engine_path=None, filled_path=N
         A.setdefault("value", {}).setdefault("notes", []).extend(value_notes)
     # anything that could not be verified stops the trigger (user rule, 2026-11-06): figures with no SEC match, and
     # gaps Claude could not settle
-    unverified = list(S.get("unverified") or []) + [f"{i['figure']} (Webull {_amt(i['webull'], i)} vs SEC {_amt(i['sec'], i)}, "
+    unverified = list(S.get("unverified") or []) + list(E.get("unverified") or []) + [f"{i['figure']} (Webull {_amt(i['webull'], i)} vs SEC {_amt(i['sec'], i)}, "
                                                       f"{i['pctApart']}% apart, not settled)" for i in open_items if i["right"] == "unsure"]
     if open_items or unverified:
         parts = [f"{i['figure']} Webull {_amt(i['webull'], i)} vs SEC {_amt(i['sec'], i)} ({i['pctApart']}% apart, {i['right']}: {i['how']})"
