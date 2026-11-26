@@ -103,3 +103,11 @@ def test_cfo_terminated_while_ceo_continues_still_departure():
 def test_cfo_succeeded_but_stays_only_until_date_still_departure():
     assert kind("On March 2, 2026, the Board appointed Jane Doe as Chief Financial Officer, succeeding John Roe. Mr. Roe "
                 "will continue to serve as Chief Financial Officer until April 1, 2026.") == "finance officer departure"
+
+def test_new_cfo_succeeds_old_cfo_while_other_officer_continues_still_departure():  # round 2 wrongly skipped this
+    assert kind("On March 2, 2026, the Board appointed Jane Doe as Chief Financial Officer, succeeding John Roe, "
+                "effective April 1, 2026. Mary Smith will continue to serve as Chief Accounting Officer.") == "finance officer departure"
+
+def test_old_cfo_stays_only_as_subsidiary_cfo_still_departure():
+    assert kind("On March 2, 2026, the Board appointed Jane Doe as Chief Financial Officer, succeeding John Roe. Mr. Roe "
+                "will continue to serve as Chief Financial Officer of the Company's European subsidiary.") == "finance officer departure"
