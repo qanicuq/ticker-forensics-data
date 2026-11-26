@@ -617,6 +617,11 @@ def classify_502(html_text):
         after = body[m.start():m.end() + 400]
         if any(p in after for p in INTERNAL_MOVE) and "retire" not in after:
             continue
+        # a finance officer who hands over one title but keeps their job is not leaving (ELF 8-K Nov 16 2026: the CAO
+        # became principal accounting officer, "succeeding" the CFO in that role; "Ms. Fields will continue to serve as
+        # Senior Vice President, Chief Financial Officer")
+        if "continue to serve as" in body and not re.search(r"\b(?:resign|retire)", body):
+            continue
         win = body[max(0, m.start() - 300):m.end() + 100]
         if any(r in win for r in FINANCE_ROLES) or re.search(r"\b(?:cfo|cao)\b", win):
             return "finance officer departure", body[max(0, m.start() - 200):m.end() + 80].strip()
