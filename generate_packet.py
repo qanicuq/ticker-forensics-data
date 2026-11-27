@@ -692,7 +692,7 @@ def governance_from_submissions(sub, today=None):
 ANNUAL_TAGS = {
     "revenue": ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "RevenueFromContractWithCustomerIncludingAssessedTax", "SalesRevenueNet"],
     "operating_income": ["OperatingIncomeLoss"],
-    "net_income": ["NetIncomeLoss"],
+    "net_income": ["NetIncomeLoss", "NetIncomeLossAvailableToCommonStockholdersBasic"],  # 2nd: e.g. IRM (NetIncomeLoss ends 2010)
     "cfo": ["NetCashProvidedByUsedInOperatingActivities"],
     "capex": ["PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireOtherPropertyPlantAndEquipment"],  # 2nd: e.g. Lilly
     "acquisitions": ["PaymentsToAcquireBusinessesNetOfCashAcquired"],
