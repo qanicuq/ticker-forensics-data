@@ -75,4 +75,4 @@ t("no annual cash flow and no quarterly capex: no free cash flow shown", () => {
   assert.ok(!a.fundamentals.valuation.includes("free-cash-flow yield"), a.fundamentals.valuation);
 });
 
-console.log`${n} tests passed`);
+console.log(`${n} tests passed`);

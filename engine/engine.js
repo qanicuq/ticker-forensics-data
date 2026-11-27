@@ -109,7 +109,7 @@ function engine(D){
   let tg=(findArr(D.tgt,x=>x&&x.mean!=null)||[])[0]||null, tgNote="";
   if(tg&&tg.currency&&tg.currency!=="USD"){ const r=tg.currency===cur?fx:null, cv=v=>N(v)!=null?N(v)*r:null;
     if(r) tg={...tg,mean:cv(tg.mean),median:cv(tg.median),high:cv(tg.high),low:cv(tg.low)};
-    else { tgNote` Targets are in ${tg.currency} and couldn't be converted to dollars, so they aren't shown.`; tg=null; } }
+    else { tgNote=` Targets are in ${tg.currency} and couldn't be converted to dollars, so they aren't shown.`; tg=null; } }
   const al=(findArr(D.alert,x=>x&&(x.start_date||x.eps_est))||[])[0]||null;
   const name=prof?.company_name||s.symbol||sym;
   const industry=(prof?.industries||[]).join(" · ");
