@@ -103,7 +103,13 @@ function engine(D){
   if(fx!==1){ const conv=r=>{ const o={...r}; for(const k in o) if(!/shares|fiscal|date|currency/.test(k)&&N(o[k])!=null) o[k]=N(o[k])*fx; return o; };
     for(const a of [iQ,iA,cQ,cA,bQ,bA]) a.forEach((r,i)=>{ a[i]=conv(r); }); }
   const prof=(findArr(D.prof,x=>x&&x.company_name)||[])[0]||null;
-  const rt=(findArr(D.rate,x=>x&&x.number!=null)||[])[0]||null, tg=(findArr(D.tgt,x=>x&&x.mean!=null)||[])[0]||null;
+  const rt=(findArr(D.rate,x=>x&&x.number!=null)||[])[0]||null;
+  /* analyst targets come in the currency Webull names (RLX: CNY), while the price is in dollars: convert with the financials' rate,
+     or leave them out when that rate is for another currency (Nov 27 2026, found on RLX) */
+  let tg=(findArr(D.tgt,x=>x&&x.mean!=null)||[])[0]||null, tgNote="";
+  if(tg&&tg.currency&&tg.currency!=="USD"){ const r=tg.currency===cur?fx:null, cv=v=>N(v)!=null?N(v)*r:null;
+    if(r) tg={...tg,mean:cv(tg.mean),median:cv(tg.median),high:cv(tg.high),low:cv(tg.low)};
+    else { tgNote` Targets are in ${tg.currency} and couldn't be converted to dollars, so they aren't shown.`; tg=null; } }
   const al=(findArr(D.alert,x=>x&&(x.start_date||x.eps_est))||[])[0]||null;
   const name=prof?.company_name||s.symbol||sym;
   const industry=(prof?.industries||[]).join(" · ");
@@ -128,8 +134,11 @@ function engine(D){
   F.cfo=ttm(cQ,"cfo")??N(cA[0]?.cfo);
   F.capex=ttm(cQ,"capex")??N(cA[0]?.capex);
   F.da=ttm(cQ,"dna")??N(cA[0]?.dna);
-  F.fcf=F.cfo!=null&&F.capex!=null?F.cfo+F.capex:null;
-  F.fcfBasis=ttm(cQ,"cfo")!=null&&ttm(cQ,"capex")!=null?"last 12 months":"last fiscal year";
+  /* free cash flow takes operating cash flow and capex from the same period: RLX's quarterly cash flow has no capex, so 12-month
+     cash flow had been paired with last fiscal year's capex under a "last fiscal year" label (Nov 27 2026, found on RLX) */
+  { const cT=ttm(cQ,"cfo"), kT=ttm(cQ,"capex"), cY=N(cA[0]?.cfo), kY=N(cA[0]?.capex);
+    if(cT!=null&&kT!=null){ F.fcf=cT+kT; F.fcfBasis="last 12 months"; }
+    else { F.fcf=cY!=null&&kY!=null?cY+kY:null; F.fcfBasis="last fiscal year"; } }
   const b0=bQ[0]||bA[0]||null;
   let shares=N(b0?.common_shares_out)||N(iQ[0]?.diluted_avg_shares)||N(iA[0]?.diluted_avg_shares)||(mcap&&price?mcap/price:null);
   /* share classes and ADRs: Webull's eps_ttm is per traded share, so profit ÷ eps_ttm is the share count the price applies to */
@@ -575,7 +584,7 @@ function engine(D){
   const techLegacy=Math.round(mean([s50&&price>s50?75:30,...(s200?[price>s200?75:25]:[]),...(s50&&s200?[s50>s200?70:30]:[]),...(r6!=null?[clamp(50+r6*150)]:[]),...(rsi!=null?[rsi>75?35:rsi<30?40:rsi>=50?70:45]:[]),macdHist>0?65:40]));
   let senti=null, analystView="";
   if(rt&&N(rt.number)){ const n=N(rt.number), b=(N(rt.strong_buy)||0)+(N(rt.buy)||0), sl=(N(rt.sell)||0)+(N(rt.under_perform)||0); senti=clamp(Math.round(30+70*(b/n)-40*(sl/n)));
-    analystView=`${n} analysts: ${b} buy, ${N(rt.hold)||0} hold, ${sl} sell.`+(tg&&N(tg.median)?` Median target $${fmt(tg.median)} (${pct(N(tg.median)/price-1)} from here). Shown for context only; it doesn't affect the score.`:" Shown for context only."); }
+    analystView=`${n} analysts: ${b} buy, ${N(rt.hold)||0} hold, ${sl} sell.`+(tg&&N(tg.median)?` Median target $${fmt(tg.median)} (${pct(N(tg.median)/price-1)} from here). Shown for context only; it doesn't affect the score.`:" Shown for context only."+tgNote); }
   const trend=s50&&s200?(price>s50&&s50>s200?"Uptrend":price<s50&&s50<s200?"Downtrend":"Mixed / sideways"):"Not enough history";
   if(rsi>70) notes.push(`RSI ${fmt(rsi,0)}: stretched after a strong run.`); else if(rsi<30) notes.push(`RSI ${fmt(rsi,0)}: oversold; wait for the selling to stop.`);
   const nextE=al?.start_date||null;
