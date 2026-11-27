@@ -1,7 +1,7 @@
 """When one ratio is already above the market's, the "no longer cheap" sell line and the no-trigger note say so,
 instead of "both ratios would be back at the market's" and a bare "target is less than 10% above the entry"
-(ELF, Nov 25 2026: P/E 72.2 vs the S&P 500's 24.0, P/B 4.99 vs 5.08, line $105.38, entry $103.47). Wording only:
-which trades get a trigger does not change."""
+(ELF, Nov 25 2026: P/E 72.2 vs the S&P 500's 24.0, P/B 4.99 vs 5.08, line $105.38, entry $103.47). Since 2026-11-27 the
+line also uses P/CF and a 10% "near the market" margin (tests/test_pcf_near.py), so the expected prices below changed."""
 import contextlib, io, json, sys
 from pathlib import Path
 
@@ -19,32 +19,36 @@ def lines(price, pe, pb, target=178.47):
     return A
 
 
+# 2026-11-27: the line now sits where every ratio is within 10% of the market's (NEAR = 0.90); these jobs have no
+# market P/CF, so P/CF is left out and the note says so (P/CF cases: tests/test_pcf_near.py)
 def test_elf_line_and_note():
     ce = lines(103.47, 72.205164, 4.987732)["exitPlan"]["cheapExit"]
-    assert ce["price"] == 105.38  # 103.47 × 5.08 ÷ 4.987732 = 105.3846; the P/E line is 34.45
-    assert ce["note"].startswith("Also sell at about $105.38, where the P/B (now 4.99) would reach the market's 5.08; "
-                                 "the P/E (now 72.2) is already above the market's 24.0 (S&P 500 P/E 24.0 and P/B 5.08 on 2026-11-25).")
-    assert "both" not in ce["note"]
+    assert ce["price"] == 94.85  # 103.47 × 0.9 × 5.08 ÷ 4.987732 = 94.846 < price: P/B 4.99 is already within 10% of 5.08
+    assert ce["note"].startswith("Already priced near the market: P/E 72.2, P/B 4.99 vs S&P 500 P/E 24.0 and P/B 5.08 on 2026-11-25, "
+                                 "each within 10% of the market's or above it.")
+    assert ce["note"].endswith("P/CF not used: the S&P 500's P/CF was unavailable this run.")
 
 
 def test_pb_above_pe_below():
-    ce = lines(50, 12, 8)["exitPlan"]["cheapExit"]  # P/E line 100.17, P/B line 31.75
-    assert ce["price"] == 100.17
-    assert "where the P/E (now 12.0) would reach the market's 24.0; the P/B (now 8.00) is already above the market's 5.08" in ce["note"]
+    ce = lines(50, 12, 8)["exitPlan"]["cheapExit"]  # P/E line 50 × 0.9 × 24.04 ÷ 12 = 90.15, P/B line 28.58
+    assert ce["price"] == 90.15
+    assert ("where the P/E (now 12.0) would come within 10% of the market's 24.0; the P/B (now 8.00) vs 5.08 is already "
+            "within 10% of the market's or above it") in ce["note"]
 
 
-def test_both_below_market_keeps_old_wording():
-    ce = lines(50, 12, 2)["exitPlan"]["cheapExit"]  # P/E line 100.17, P/B line 127.00
-    assert ce["note"].startswith("Also sell at about $127.00, where both the P/E (now 12.0) and the P/B (now 2.00) would be back at")
+def test_both_below_market():
+    ce = lines(50, 12, 2)["exitPlan"]["cheapExit"]  # P/E line 90.15, P/B line 50 × 0.9 × 5.08 ÷ 2 = 114.30
+    assert ce["note"].startswith("Also sell at about $114.30, where the P/E (now 12.0) and the P/B (now 2.00) would both be "
+                                 "within 10% of the market's")
 
 
 def test_both_above_market_keeps_old_wording():
     ce = lines(50, 40, 8)["exitPlan"]["cheapExit"]
-    assert ce["note"].startswith("Already priced like the market")
+    assert ce["note"].startswith("Already priced near the market")
 
 
 def test_line_above_value_keeps_old_wording():
-    ce = lines(50, 12, 4, target=60)["exitPlan"]["cheapExit"]  # line 100.17 ≥ value 60
+    ce = lines(50, 12, 4, target=60)["exitPlan"]["cheapExit"]  # line 90.15 ≥ value 60
     assert "so the value target comes first" in ce["note"]
 
 

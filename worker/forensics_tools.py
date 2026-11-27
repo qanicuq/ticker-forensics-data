@@ -292,7 +292,7 @@ def cmd_sec(job_path, packet_path, engine_path=None, filled_path=None):
     out["packet"] = True
     out["market"] = pk.get("market")
     out["resultsFiled"] = ((pk.get("earnings_release") or {}).get("filed")  # newest 8-K item 2.02 (earnings release)
-                           or (pk.get("latest_results_filing") or {}).get("filed"))  # no release (e.g. WETH): newest 10-Q/10-K  # the S&P 500's P/E and P/B for the "no longer cheap" sell line
+                           or (pk.get("latest_results_filing") or {}).get("filed"))  # no release (e.g. WETH): newest 10-Q/10-K  # the S&P 500's P/E, P/B and P/CF for the "no longer cheap" sell line
 
     gov = pk.get("governance")
     if gov is None:
@@ -683,14 +683,19 @@ def _full_only_items(A, P):
             cl.append(new)
 
 
+NEAR = 0.90  # Dreman Rule 21 "back near the market's": a ratio counts once it is within 10% of the S&P 500's (user, 2026-11-27)
+
+
 def _market_lines(E, A, mk):
-    """Dreman Rule 21: sell when the P/E (and here also the P/B) is back at the market's, even before estimated value.
-    The sell price is where BOTH ratios reach the S&P 500's at today's earnings and book value; Bernstein's Nifty-Fifty
-    note compares the P/E with twice the market's. Needs the packet's market figures; otherwise says it was unavailable."""
+    """Dreman Rule 21: sell when the P/E, P/CF and P/B are back near the market's, even before estimated value.
+    The sell price is where ALL the ratios reach 90% of the S&P 500's (NEAR) at today's earnings, cash flow and book
+    value. P/CF = market cap ÷ operating cash flow over the last 12 months; it is left out (and the note says why) when
+    the packet has no market P/CF or the company's cash flow is negative or missing. Bernstein's Nifty-Fifty note
+    compares the P/E with twice the market's. Needs the packet's market figures; otherwise says it was unavailable."""
     q = E.get("quote") or {}
     price, pe, pb = num(q.get("price")), num(q.get("pe")), num(q.get("pb"))
     ep = A.get("exitPlan") or {}
-    mpe, mpb = num((mk or {}).get("pe")), num((mk or {}).get("pb"))
+    mpe, mpb, mpcf = num((mk or {}).get("pe")), num((mk or {}).get("pb")), num((mk or {}).get("pcf"))
     if not (mpe and mpb):
         if ep.get("entryType") == "value":
             ep["cheapExit"] = {"price": None, "note": "S&P 500 P/E and P/B unavailable this run, so there is no \"no longer cheap\" sell line."}
@@ -700,29 +705,51 @@ def _market_lines(E, A, mk):
             f"P/E of {pe:.1f} is more than twice the S&P 500's {mpe:.1f}: the price assumes growth lasts a long time (Bernstein's Nifty-Fifty).")
     if ep.get("entryType") != "value":
         return
-    src = f"S&P 500 P/E {mpe:.1f} and P/B {mpb:.2f} on {mk.get('date')}"
+    mcap, cfo = num(q.get("marketCap")), num((E.get("fin") or {}).get("cfo"))
+    pcf = mcap / cfo if mcap and cfo and cfo > 0 else None
+    skip = None
+    if not mpcf:
+        skip = "P/CF not used: the S&P 500's P/CF was unavailable this run."
+    elif pcf is None:
+        skip = "P/CF not used: operating cash flow over the last 12 months is negative or missing."
+    src = (f"S&P 500 P/E {mpe:.1f}, P/B {mpb:.2f} and P/CF {mpcf:.1f}" if not skip else f"S&P 500 P/E {mpe:.1f} and P/B {mpb:.2f}") + f" on {mk.get('date')}"
     if not (price and pe and pe > 0 and pb and pb > 0):
-        ep["cheapExit"] = {"price": None, "marketPE": mpe, "marketPB": mpb,
+        ep["cheapExit"] = {"price": None, "marketPE": mpe, "marketPB": mpb, "marketPCF": mpcf,
                            "note": f"No \"no longer cheap\" sell line: the stock has no positive P/E or P/B ({src})."}
         return
-    line = round(max(price * mpe / pe, price * mpb / pb), 2)
-    note = (f"Also sell at about {money(line)}, where both the P/E (now {pe:.1f}) and the P/B (now {pb:.2f}) would be back at "
-            f"the market's ({src}), even if that is below estimated value (Dreman Rule 21). The line moves as earnings, book value "
-            "and the market change: re-check it when you review.")
-    if price * mpe / pe < price or price * mpb / pb < price:  # one ratio is already above the market's (ELF, Nov 2026: P/E 72 vs 24)
-        hi, lo = (("P/E", f"{pe:.1f}", f"{mpe:.1f}"), ("P/B", f"{pb:.2f}", f"{mpb:.2f}")) if pe > mpe else (("P/B", f"{pb:.2f}", f"{mpb:.2f}"), ("P/E", f"{pe:.1f}", f"{mpe:.1f}"))
-        note = (f"Also sell at about {money(line)}, where the {lo[0]} (now {lo[1]}) would reach the market's {lo[2]}; the {hi[0]} "
-                f"(now {hi[1]}) is already above the market's {hi[2]} ({src}). Dreman Rule 21: sell when the stock is no longer "
-                "cheaper than the market, even if that is below estimated value. The line moves as earnings, book value and the "
-                "market change: re-check it when you review.")
+    R = [("P/E", pe, mpe, ".1f"), ("P/B", pb, mpb, ".2f")] + ([("P/CF", pcf, mpcf, ".1f")] if not skip else [])
+    at = {n: price * NEAR * m / s for n, s, m, f in R}  # price where each ratio is 90% of the market's
+    line = round(max(at.values()), 2)
+    now = lambda n, s, f: f"the {n} (now {s:{f}})"
+    def join(xs):
+        return xs[0] if len(xs) == 1 else ", ".join(xs[:-1]) + " and " + xs[-1]
+    near = "within 10% of the market's"
+    hi = [r for r in R if at[r[0]] < price]  # already within 10% of the market's, or above it
+    lo = [r for r in R if at[r[0]] >= price]
+    if not hi:
+        note = (f"Also sell at about {money(line)}, where {join([now(n, s, f) for n, s, m, f in R])} would {'both' if len(R) == 2 else 'all'} be {near} "
+                f"({src}), even if that is below estimated value (Dreman Rule 21).")
+    elif lo:  # (all ratios already near the market: the "Already priced near the market" note below replaces it)
+        lo_t = join([f"{now(n, s, f)} would come within 10% of the market's {m:{f}}" for n, s, m, f in lo])
+        hi_t = join([f"{now(n, s, f)} vs {m:{f}}" for n, s, m, f in hi])
+        verb = "is" if len(hi) == 1 else "are"
+        note = (f"Also sell at about {money(line)}, where {lo_t}; {hi_t} {verb} already {near} or above it ({src}). "
+                "Dreman Rule 21: sell when the stock is no longer cheaper than the market, even if that is below estimated value.")
+    else:
+        note = ""
+    note += " The line moves as earnings, cash flow, book value and the market change: re-check it when you review."
     tgt = num(ep.get("target"))
+    ratios_now = ", ".join(f"{n} {s:{f}}" for n, s, m, f in R)
     if tgt is not None and line >= tgt:
-        note = (f"The market-level line is about {money(line)} (P/E {pe:.1f} and P/B {pb:.2f} now, vs {src}), above the "
+        note = (f"The market-level line is about {money(line)} ({ratios_now} now, vs {src}), above the "
                 f"estimated value of {money(tgt)}, so the value target comes first (Dreman Rule 21).")
     if line <= price:
-        note = (f"Already priced like the market: P/E {pe:.1f} and P/B {pb:.2f} vs {src}. By Dreman's Rule 21 this is not a "
-                "contrarian buy, and a holder would sell.")
-    ep["cheapExit"] = {"price": line, "marketPE": mpe, "marketPB": mpb, "stockPE": pe, "stockPB": pb,
+        note = (f"Already priced near the market: {ratios_now} vs {src}, each {near} or above it. By Dreman's Rule 21 "
+                "this is not a contrarian buy, and a holder would sell.")
+    if skip:
+        note += " " + skip
+    ep["cheapExit"] = {"price": line, "marketPE": mpe, "marketPB": mpb, "marketPCF": mpcf, "stockPE": pe, "stockPB": pb,
+                       "stockPCF": round(pcf, 2) if pcf is not None and not skip else None, "near": NEAR,
                        "date": mk.get("date"), "note": note}
 
 
@@ -1095,9 +1122,12 @@ def cmd_trigger(final_path, ticker, check=None):
                 elif target < X * 1.1 and cheap_first:  # the "no longer cheap" line replaced the value target (ELF, Nov 2026)
                     ce_ = ep.get("cheapExit") or {}
                     where = "is already below" if target < X else "is less than 10% above"  # ELF Nov 26 2026: $105.38 vs entry $108.93
+                    cmp_ = (f"P/E {ce_.get('stockPE'):.1f} vs the S&P 500's {ce_.get('marketPE'):.1f}, "
+                            f"P/B {ce_.get('stockPB'):.2f} vs {ce_.get('marketPB'):.2f}")
+                    if ce_.get("stockPCF") is not None and ce_.get("marketPCF"):
+                        cmp_ += f", P/CF {ce_['stockPCF']:.1f} vs {ce_['marketPCF']:.1f}"
                     why = (f"the \"no longer cheap\" sell price {money(target)} {where} the entry {money(X)}, so the stock is "
-                           f"not clearly cheaper than the market (P/E {ce_.get('stockPE'):.1f} vs the S&P 500's {ce_.get('marketPE'):.1f}, "
-                           f"P/B {ce_.get('stockPB'):.2f} vs {ce_.get('marketPB'):.2f}; Dreman Rule 21). The value estimate "
+                           f"not clearly cheaper than the market ({cmp_}; Dreman Rule 21). The value estimate "
                            f"{money(num(ep.get('target')))} is not used as the target while the stock is priced like the market")
                 elif target < X * 1.1:
                     why = f"the target {money(target)} is less than 10% above the entry {money(X)}"
@@ -1127,7 +1157,10 @@ def cmd_trigger(final_path, ticker, check=None):
                     basis = (ep.get("entryBasis") or A.get("entryBasis") or "value buy-below").lower()
                     tbasis = (ep.get("targetBasis") or "intrinsic value").lower()
                     if cheap_first:
-                        tbasis = "no longer cheap: P/E and P/B back at the S&P 500's, below estimated value"
+                        ce_ = ep.get("cheapExit") or {}
+                        rs = "P/E, P/B and P/CF" if ce_.get("stockPCF") is not None else "P/E and P/B"
+                        tbasis = (f"no longer cheap: {rs} within 10% of the S&P 500's, below estimated value" if ce_.get("near")
+                                  else "no longer cheap: P/E and P/B back at the S&P 500's, below estimated value")
                     rec = f"{v}, confidence {A.get('confidence')}: buy at or below {money(X)} ({basis}), sell at {money(target)} ({tbasis}), stop {money(stop)}"
                     rec += "; the stop is disaster insurance only, set beyond the stock's worst past fall" if value else "; chart-based entry, not a value bargain: keep it small"
                     wait = ""

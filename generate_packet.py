@@ -975,7 +975,16 @@ try:
     spy_pe = round2((yf.Ticker("SPY").info or {}).get("trailingPE"))
     if not (8 <= mpe <= 60 and 1 <= mpb <= 12):
         raise ValueError(f"out of range: P/E {mpe}, P/B {mpb}")
-    packet["market"] = {"pe": mpe, "pb": mpb, "spy_trailing_pe": spy_pe, "index": "S&P 500 (SPY holdings)",
+    mpcf = None  # P/CF (Dreman Rule 21, added 2026-11-27): same table, same inverse; its own range check so a bad
+    try:         # P/CF row never drops the P/E and P/B
+        mpcf = round2(1 / float(eh.loc["Price/Cashflow", col]))
+        if not (4 <= mpcf <= 60):
+            packet["errors"].append(f"market P/CF: out of range: {mpcf}")
+            mpcf = None
+    except Exception as e:
+        packet["errors"].append(f"market P/CF: {type(e).__name__}: {str(e)[:120]}")
+        mpcf = None
+    packet["market"] = {"pe": mpe, "pb": mpb, "pcf": mpcf, "spy_trailing_pe": spy_pe, "index": "S&P 500 (SPY holdings)",
                         "date": datetime.utcnow().strftime("%Y-%m-%d"), "source": "yfinance SPY equity_holdings (inverse of the yields)"}
 except Exception as e:
     packet["errors"].append(f"market P/E: {type(e).__name__}: {str(e)[:120]}")
