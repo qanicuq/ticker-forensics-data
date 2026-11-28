@@ -1,13 +1,13 @@
 # Diamond Finder: honest forward test
 
-Updated with closes through 2026-11-25. Paper money only. 1 monthly basket(s) per method so far.
+Updated with closes through 2026-11-27. Paper money only. 1 monthly basket(s) per method so far.
 
 Each month, two paper baskets of the top 20 stocks are bought at that run's closing prices: one by the **new ranking** (clean stocks first, price-to-cash-flow factor; from 2026-11-15) and one by the **old ranking** (before 2026-11-15). Each is held 12 months. Costs of 0.5% per buy and per sell are taken off (assumed bid/ask spread; stock commissions are $0). A stock that stops trading counts as $0 until checked by hand. Baselines: IWN (small-cap value ETF) and SPY (S&P 500 ETF).
 
 | Month | New ranking | Old ranking | IWN | SPY |
 |---|---|---|---|---|
-| 2026-11 (so far) | -6.5% | -6.5% | -3.0% | -5.0% |
-| **Total so far** | **-6.5%** | **-6.5%** | **-3.0%** | **-5.0%** |
+| 2026-11 (so far) | -4.6% | -4.6% | -1.6% | -3.5% |
+| **Total so far** | **-4.6%** | **-4.6%** | **-1.6%** | **-3.5%** |
 
 ## How to read this
 
