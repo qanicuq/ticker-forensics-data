@@ -167,6 +167,8 @@ if __name__ == "__main__":
     as_of = sys.argv[1] if len(sys.argv) > 1 else pd.Timestamp.today().strftime("%Y-%m-%d")
     raw = fred.fetch_all(with_recessions=True)
     out, monthly = run(raw, as_of)
+    import os
+    os.makedirs("results", exist_ok=True)
     with open("results/backtest.json", "w") as f:
         json.dump(out, f, indent=1)
     monthly.round(4).to_csv("results/monthly.csv")
