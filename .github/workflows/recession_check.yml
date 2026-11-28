@@ -1,9 +1,10 @@
 name: Recession check
 
 # Daily check of recession signals. Pushes only when something changes, plus a Monday summary.
-# No schedule yet: run by hand until the owner approves switching it on.
 
 on:
+  schedule:
+    - cron: "23 18 * * 1-5"   # 18:23 UTC = 1:23 PM New York in winter (2:23 PM in summer time)
   workflow_dispatch:
     inputs:
       summary:
