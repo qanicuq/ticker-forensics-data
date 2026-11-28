@@ -108,6 +108,9 @@ def test_alert_pushes_only_on_change(tmp_path, monkeypatch):
     raw["DTB3"]["2003-12-01":] = 9.0; raw["TB3MS"] = raw["TB3MS"][:"2003-11-01"]
     alert.main()                                        # curve inverts this month
     assert sent[-1] == "Recession Alert: WATCH"
+    status = open("STATUS.md").read()
+    assert status.startswith("# Recession Alert: WATCH\n") and "Wed, Dec 10, 2003" in status
+    assert "December 2003 so far" in status and "[ON ] Yield curve" in status
 
 
 def test_warning_is_judged_on_early_signals_only():

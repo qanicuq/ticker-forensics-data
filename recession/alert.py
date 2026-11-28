@@ -94,6 +94,15 @@ def main(force_summary=False):
 
     state.update({"level": level, "signals": now, "data_problem": bool(problems)})
     json.dump(state, open(STATE, "w"), indent=1)
+    with open("STATUS.md", "w") as f:
+        f.write(f"# Recession Alert: {sg.LEVELS[level]}\n\n"
+                f"Last checked {today:%a, %b %-d, %Y} (New York), using readings for {r.index[-1]:%B %Y}"
+                f"{' so far' if r.index[-1].month == today.month else ''}."
+                f"{' **Data problem:** ' + '; '.join(problems) if problems else ''}\n\n"
+                + "\n".join(f"- {x}" for x in text.splitlines())
+                + "\n\nWATCH = 1 early signal on. WARNING = 2 or 3 early signals on. "
+                  "RECESSION SIGNAL = Sahm Rule or falling jobs.\n\n"
+                  "[History test results](results/RESULTS.md)\n")
     print(f"{today.date()} level {sg.LEVELS[level]}; pushes sent: {sent or 'none'}\n{text}")
 
 
