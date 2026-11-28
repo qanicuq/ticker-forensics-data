@@ -89,8 +89,8 @@ def run(raw, as_of):
     for x, y, p in itertools.product(SPREAD_X, CLAIMS_Y, PERSIST):
         s = sg.signals(r, x, y, p)
         grid.append({"spread_x": x, "claims_y": y, "persist": p, "s": s,
-                     "train": judge(s["level"] >= 2, usrec, *train, "early"),
-                     "test": judge(s["level"] >= 2, usrec, *test, "early")})
+                     "train": judge(s["early_count"] >= 2, usrec, *train, "early"),
+                     "test": judge(s["early_count"] >= 2, usrec, *test, "early")})
     best = max(grid, key=lambda g: score(g["train"]))
     s = best["s"]
 
@@ -102,11 +102,11 @@ def run(raw, as_of):
         "chosen": {"spread_x": best["spread_x"], "claims_y": best["claims_y"], "persist": best["persist"]},
         "payroll_real_time_from": raw["PAYEMS_VINTAGES"]["rs"].min().strftime("%Y-%m-%d"),
         "train": {"warning": best["train"],
-                  "watch": judge(s["level"] >= 1, usrec, *train, "early"),
+                  "watch": judge(s["early_count"] >= 1, usrec, *train, "early"),
                   "recession_signal": judge(s["level"] == 3, usrec, *train, "here"),
                   "baseline_curve_only": judge(base, usrec, *train, "early")},
         "test": {"warning": best["test"],
-                 "watch": judge(s["level"] >= 1, usrec, *test, "early"),
+                 "watch": judge(s["early_count"] >= 1, usrec, *test, "early"),
                  "recession_signal": judge(s["level"] == 3, usrec, *test, "here"),
                  "baseline_curve_only": judge(base, usrec, *test, "early")},
         "all_versions_on_test": [

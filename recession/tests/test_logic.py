@@ -108,3 +108,13 @@ def test_alert_pushes_only_on_change(tmp_path, monkeypatch):
     raw["DTB3"]["2003-12-01":] = 9.0; raw["TB3MS"] = raw["TB3MS"][:"2003-11-01"]
     alert.main()                                        # curve inverts this month
     assert sent[-1] == "Recession Alert: WATCH"
+
+
+def test_warning_is_judged_on_early_signals_only():
+    raw = fake_raw("2006-12-31")
+    idx = pd.date_range("1953-04-01", "2006-12-01", freq="MS")
+    raw["USREC"] = pd.Series(0, idx)
+    raw["SAHMREALTIME"]["2003-04-01"] = 0.6           # a lone RECESSION SIGNAL month, no early signals
+    out, _ = bt.run(raw, "2006-12-31")
+    assert out["test"]["warning"]["false_count"] == 0
+    assert out["test"]["recession_signal"]["false_count"] == 1
